@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1e1b4b"/>
+      <stop offset="100%" stop-color="#312e81"/>
+    </linearGradient>
+    <linearGradient id="shield" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="lock" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#c7d2fe"/>
+      <stop offset="100%" stop-color="#a5b4fc"/>
+    </linearGradient>
+  </defs>
+  <!-- Background rounded square -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <!-- Shield shape -->
+  <path d="M256 80 L400 140 L400 280 C400 360 340 420 256 448 C172 420 112 360 112 280 L112 140 Z"
+        fill="url(#shield)" opacity="0.25" stroke="url(#shield)" stroke-width="4"/>
+  <!-- Inner shield glow -->
+  <path d="M256 110 L375 160 L375 275 C375 340 325 390 256 415 C187 390 137 340 137 275 L137 160 Z"
+        fill="none" stroke="#818cf8" stroke-width="2" opacity="0.5"/>
+  <!-- Lock body -->
+  <rect x="210" y="245" width="92" height="76" rx="12" fill="url(#lock)"/>
+  <!-- Lock shackle -->
+  <path d="M228 245 L228 210 C228 185 240 170 256 170 C272 170 284 185 284 210 L284 245"
+        fill="none" stroke="url(#lock)" stroke-width="14" stroke-linecap="round"/>
+  <!-- Keyhole -->
+  <circle cx="256" cy="275" r="10" fill="#312e81"/>
+  <rect x="252" y="280" width="8" height="18" rx="3" fill="#312e81"/>
+  <!-- LVM blocks (stacked layers below the lock) -->
+  <rect x="186" y="338" width="140" height="14" rx="4" fill="#818cf8" opacity="0.6"/>
+  <rect x="196" y="358" width="120" height="14" rx="4" fill="#818cf8" opacity="0.4"/>
+  <rect x="206" y="378" width="100" height="14" rx="4" fill="#818cf8" opacity="0.25"/>
+  <!-- Small decorative dots (representing OS entries) -->
+  <circle cx="170" cy="160" r="6" fill="#34d399" opacity="0.8"/>
+  <circle cx="200" cy="142" r="4" fill="#60a5fa" opacity="0.7"/>
+  <circle cx="312" cy="142" r="4" fill="#f472b6" opacity="0.7"/>
+  <circle cx="342" cy="160" r="6" fill="#fbbf24" opacity="0.8"/>
+</svg>

@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { getSystemOverview, getClevisStatus, runDiagnostics, getDemoMode } from '../utils/api.js';
+  import { getSystemOverview, getClevisStatus, runDiagnostics, getDemoMode, getLuksInfo, listClevisBindings } from '../utils/api.js';
 
   let overview = $state(null);
   let clevisStatus = $state(null);
@@ -8,6 +8,7 @@
   let loading = $state(true);
   let error = $state(null);
   let demoMode = $state(false);
+  let setupStatus = $state(null);
 
   onMount(async () => {
     try {
@@ -23,6 +24,9 @@
       demoMode = dm.status === 'fulfilled' ? dm.value : false;
       if (!overview) {
         error = ov.reason?.message || 'Failed to load system overview';
+      } else {
+        // Detect existing setup status
+        await detectSetupStatus();
       }
     } catch (e) {
       error = e?.message || String(e);
@@ -30,6 +34,54 @@
       loading = false;
     }
   });
+
+  async function detectSetupStatus() {
+    if (!overview) return;
+    const status = {
+      hasLuks: overview.luks_volumes.length > 0,
+      hasLvm: overview.lvm.available && overview.lvm.volume_groups.length > 0,
+      hasBoot: overview.boot && overview.boot.entries.length > 0,
+      hasCryptenroll: overview.has_cryptenroll,
+      hasClevis: clevisStatus?.clevis_installed || false,
+      hasBackups: overview.backup_count > 0,
+      tpm2Enrolled: false,
+      fido2Enrolled: false,
+      recoveryKey: false,
+      clevisBindings: 0,
+      configuredDevices: [],
+    };
+
+    // Check each LUKS volume for existing enrollment
+    for (const device of overview.luks_volumes) {
+      try {
+        const info = await getLuksInfo(device);
+        const deviceStatus = {
+          device,
+          hasTpm2: info.tokens?.some(t => t.token_type?.includes('tpm2')) || false,
+          hasFido2: info.tokens?.some(t => t.token_type?.includes('fido2')) || false,
+          hasRecovery: info.key_slots?.length > 2,
+          slotCount: info.active_passphrase_slots || 0,
+        };
+        status.configuredDevices.push(deviceStatus);
+        if (deviceStatus.hasTpm2) status.tpm2Enrolled = true;
+        if (deviceStatus.hasFido2) status.fido2Enrolled = true;
+      } catch {
+        // Skip devices we can't read
+      }
+    }
+
+    // Check for existing Clevis bindings
+    if (status.hasClevis && overview.luks_volumes.length > 0) {
+      try {
+        const bindings = await listClevisBindings(overview.luks_volumes[0]);
+        status.clevisBindings = bindings.length;
+      } catch {
+        // OK if no bindings
+      }
+    }
+
+    setupStatus = status;
+  }
 
   function familyLabel(family) {
     const labels = {
@@ -262,6 +314,60 @@
       </div>
 
     </div>
+
+    <!-- Setup Status Summary -->
+    {#if setupStatus}
+      <div class="bg-surface-1 border border-border rounded-lg p-5">
+        <h3 class="font-semibold text-text-primary mb-4">Configuration Status</h3>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div class="text-center p-3 rounded-lg {setupStatus.hasLuks ? 'bg-success/10' : 'bg-surface-2'}">
+            <div class="text-lg mb-1">{setupStatus.hasLuks ? '&#10003;' : '&#9711;'}</div>
+            <p class="text-xs font-medium {setupStatus.hasLuks ? 'text-success' : 'text-text-muted'}">LUKS Detected</p>
+          </div>
+          <div class="text-center p-3 rounded-lg {setupStatus.tpm2Enrolled ? 'bg-success/10' : 'bg-surface-2'}">
+            <div class="text-lg mb-1">{setupStatus.tpm2Enrolled ? '&#10003;' : '&#9711;'}</div>
+            <p class="text-xs font-medium {setupStatus.tpm2Enrolled ? 'text-success' : 'text-text-muted'}">TPM2 Enrolled</p>
+          </div>
+          <div class="text-center p-3 rounded-lg {setupStatus.clevisBindings > 0 ? 'bg-success/10' : 'bg-surface-2'}">
+            <div class="text-lg mb-1">{setupStatus.clevisBindings > 0 ? '&#10003;' : '&#9711;'}</div>
+            <p class="text-xs font-medium {setupStatus.clevisBindings > 0 ? 'text-success' : 'text-text-muted'}">Clevis Bound</p>
+          </div>
+          <div class="text-center p-3 rounded-lg {setupStatus.hasBoot ? 'bg-success/10' : 'bg-surface-2'}">
+            <div class="text-lg mb-1">{setupStatus.hasBoot ? '&#10003;' : '&#9711;'}</div>
+            <p class="text-xs font-medium {setupStatus.hasBoot ? 'text-success' : 'text-text-muted'}">Boot Entries</p>
+          </div>
+          <div class="text-center p-3 rounded-lg {setupStatus.hasBackups ? 'bg-success/10' : 'bg-surface-2'}">
+            <div class="text-lg mb-1">{setupStatus.hasBackups ? '&#10003;' : '&#9711;'}</div>
+            <p class="text-xs font-medium {setupStatus.hasBackups ? 'text-success' : 'text-text-muted'}">Backups</p>
+          </div>
+          <div class="text-center p-3 rounded-lg {setupStatus.hasLvm ? 'bg-success/10' : 'bg-surface-2'}">
+            <div class="text-lg mb-1">{setupStatus.hasLvm ? '&#10003;' : '&#9711;'}</div>
+            <p class="text-xs font-medium {setupStatus.hasLvm ? 'text-success' : 'text-text-muted'}">LVM Active</p>
+          </div>
+        </div>
+
+        {#if setupStatus.configuredDevices.length > 0}
+          <div class="mt-4 space-y-2">
+            {#each setupStatus.configuredDevices as dev}
+              <div class="flex items-center gap-3 text-sm bg-surface-2 rounded-lg px-3 py-2">
+                <span class="font-mono text-text-primary">{dev.device}</span>
+                <span class="text-text-muted">&middot;</span>
+                <span class="text-text-secondary">{dev.slotCount} key slot(s)</span>
+                {#if dev.hasTpm2}
+                  <span class="text-[10px] bg-success/10 text-success px-1.5 py-0.5 rounded font-bold">TPM2</span>
+                {/if}
+                {#if dev.hasFido2}
+                  <span class="text-[10px] bg-accent/10 text-accent px-1.5 py-0.5 rounded font-bold">FIDO2</span>
+                {/if}
+                {#if dev.hasRecovery}
+                  <span class="text-[10px] bg-warning/10 text-warning px-1.5 py-0.5 rounded font-bold">RECOVERY</span>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    {/if}
 
     <!-- Privilege Warning Banner -->
     {#if overview.privilege && overview.privilege.level !== 'Root'}

@@ -375,6 +375,9 @@ pub fn list_backups(
         details: None,
     })?;
 
+    if state.demo_mode {
+        return Ok(crate::demo::demo_backups(backup_type.as_deref()));
+    }
     match backup_type.as_deref() {
         Some("luks_header") => Ok(state.backup_manager.list_by_type(&BackupType::LuksHeader)?),
         Some("crypttab") => Ok(state.backup_manager.list_by_type(&BackupType::Crypttab)?),
@@ -394,6 +397,9 @@ pub fn verify_backup(
         message: "Failed to acquire state lock".into(),
         details: None,
     })?;
+    if state.demo_mode {
+        return Ok(true); // All demo backups are "valid"
+    }
     Ok(state.backup_manager.verify_backup(&backup_id)?)
 }
 
@@ -406,6 +412,10 @@ pub fn verify_all_backups(
         message: "Failed to acquire state lock".into(),
         details: None,
     })?;
+    if state.demo_mode {
+        let backups = crate::demo::demo_backups(None);
+        return Ok(backups.into_iter().map(|b| (b, true)).collect());
+    }
     Ok(state.backup_manager.verify_all()?)
 }
 
@@ -475,6 +485,9 @@ pub fn list_themes(
         message: "Failed to acquire state lock".into(),
         details: None,
     })?;
+    if state.demo_mode {
+        return Ok(crate::demo::demo_themes());
+    }
     Ok(state.theme_manager.list_installed()?)
 }
 
@@ -530,6 +543,71 @@ pub fn get_theme_screenshot(
     Ok(state.theme_manager.get_screenshot_data(&theme_id)?)
 }
 
+#[tauri::command]
+pub fn browse_repo_themes(
+    repo_url: String,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<Vec<Theme>, AppError> {
+    let state = state.lock().map_err(|_| AppError {
+        code: "LOCK_ERROR".into(),
+        message: "Failed to acquire state lock".into(),
+        details: None,
+    })?;
+    Ok(state.theme_manager.browse_repo(&repo_url)?)
+}
+
+#[tauri::command]
+pub fn install_repo_theme(
+    theme_id: String,
+    download_url: String,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<Theme, AppError> {
+    let state = state.lock().map_err(|_| AppError {
+        code: "LOCK_ERROR".into(),
+        message: "Failed to acquire state lock".into(),
+        details: None,
+    })?;
+
+    state
+        .logger
+        .log_operation(&logging::entry(
+            LogLevel::Info,
+            LogCategory::ThemeChange,
+            format!("Installing theme: {} from {}", theme_id, download_url),
+            None,
+            None,
+        ))
+        .ok();
+
+    Ok(state.theme_manager.install_from_repo(&theme_id, &download_url)?)
+}
+
+#[tauri::command]
+pub fn uninstall_theme(
+    theme_id: String,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<(), AppError> {
+    let state = state.lock().map_err(|_| AppError {
+        code: "LOCK_ERROR".into(),
+        message: "Failed to acquire state lock".into(),
+        details: None,
+    })?;
+
+    state
+        .logger
+        .log_operation(&logging::entry(
+            LogLevel::Info,
+            LogCategory::ThemeChange,
+            format!("Uninstalling theme: {}", theme_id),
+            None,
+            None,
+        ))
+        .ok();
+
+    state.theme_manager.uninstall(&theme_id)?;
+    Ok(())
+}
+
 // ═══════════════════════════════════════════════════════
 // LOGGING COMMANDS
 // ═══════════════════════════════════════════════════════
@@ -544,6 +622,9 @@ pub fn get_recent_logs(
         message: "Failed to acquire state lock".into(),
         details: None,
     })?;
+    if state.demo_mode {
+        return Ok(crate::demo::demo_recent_logs(count.unwrap_or(100)));
+    }
     Ok(state
         .logger
         .read_recent(count.unwrap_or(100))
@@ -564,6 +645,9 @@ pub fn get_audit_logs(
         message: "Failed to acquire state lock".into(),
         details: None,
     })?;
+    if state.demo_mode {
+        return Ok(crate::demo::demo_audit_logs(count.unwrap_or(100)));
+    }
     Ok(state
         .logger
         .read_recent_audit(count.unwrap_or(100))
@@ -749,6 +833,9 @@ pub fn get_recovery_backups(
         message: "Failed to acquire state lock".into(),
         details: None,
     })?;
+    if state.demo_mode {
+        return Ok(crate::demo::demo_recovery_backups());
+    }
     Ok(recovery::get_recovery_backups(&state.backup_manager)?)
 }
 

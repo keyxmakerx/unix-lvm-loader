@@ -52,6 +52,9 @@ export const listThemes = () => invoke('list_themes');
 export const setActiveTheme = (themeId) => invoke('set_active_theme', { themeId });
 export const getThemeThumbnail = (themeId) => invoke('get_theme_thumbnail', { themeId });
 export const getThemeScreenshot = (themeId) => invoke('get_theme_screenshot', { themeId });
+export const browseRepoThemes = (repoUrl) => invoke('browse_repo_themes', { repoUrl });
+export const installRepoTheme = (themeId, downloadUrl) => invoke('install_repo_theme', { themeId, downloadUrl });
+export const uninstallTheme = (themeId) => invoke('uninstall_theme', { themeId });
 
 // ─── Logging ───
 export const getRecentLogs = (count = 100) => invoke('get_recent_logs', { count });

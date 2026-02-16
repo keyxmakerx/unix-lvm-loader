@@ -11,7 +11,6 @@ pub enum ThemeError {
     NotFound(String),
     #[error("Invalid theme: {0}")]
     Invalid(String),
-    #[allow(dead_code)]
     #[error("Network error: {0}")]
     NetworkError(String),
 }
@@ -50,7 +49,6 @@ pub enum ThemeStyle {
 }
 
 /// Theme repository index (fetched from remote)
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThemeIndex {
     pub version: u32,
@@ -58,7 +56,6 @@ pub struct ThemeIndex {
 }
 
 /// A theme entry from the remote repository
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThemeManifest {
     pub id: String,
@@ -301,7 +298,6 @@ impl ThemeManager {
     }
 
     /// Install a theme from a directory (e.g., downloaded/extracted)
-    #[allow(dead_code)]
     pub fn install_from_dir(&self, source: &Path) -> Result<Theme, ThemeError> {
         let manifest_path = source.join("theme.toml");
         if !manifest_path.exists() {
@@ -336,7 +332,6 @@ impl ThemeManager {
     }
 
     /// Uninstall a theme
-    #[allow(dead_code)]
     pub fn uninstall(&self, theme_id: &str) -> Result<(), ThemeError> {
         let theme_dir = self.themes_dir.join(theme_id);
         if !theme_dir.exists() {
@@ -407,6 +402,145 @@ style = "graphical"
     #[allow(dead_code)]
     pub fn cache_dir(&self) -> &Path {
         &self.cache_dir
+    }
+
+    /// Browse the remote theme repository and return available themes.
+    /// Uses `curl` or `wget` to fetch the theme index from the repo URL.
+    pub fn browse_repo(&self, repo_url: &str) -> Result<Vec<Theme>, ThemeError> {
+        let index_url = format!("{}/themes.json", repo_url.trim_end_matches('/'));
+
+        // Try curl first, fall back to wget
+        let output = std::process::Command::new("curl")
+            .args(["-fsSL", "--connect-timeout", "10", "--max-time", "30", &index_url])
+            .output()
+            .or_else(|_| {
+                std::process::Command::new("wget")
+                    .args(["-qO-", "--timeout=10", &index_url])
+                    .output()
+            })
+            .map_err(|e| ThemeError::NetworkError(format!("Neither curl nor wget available: {}", e)))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(ThemeError::NetworkError(format!(
+                "Failed to fetch theme index: {}",
+                stderr.trim()
+            )));
+        }
+
+        let body = String::from_utf8_lossy(&output.stdout);
+        let index: ThemeIndex = serde_json::from_str(&body).map_err(|e| {
+            ThemeError::Invalid(format!("Invalid theme index JSON: {}", e))
+        })?;
+
+        // Convert manifests to Theme structs, marking install status
+        let installed_ids: Vec<String> = self
+            .list_installed()?
+            .iter()
+            .map(|t| t.id.clone())
+            .collect();
+
+        let active_id = self.get_active_theme_id();
+
+        Ok(index
+            .themes
+            .into_iter()
+            .map(|m| Theme {
+                installed: installed_ids.contains(&m.id),
+                active: active_id.as_deref() == Some(&m.id),
+                id: m.id,
+                name: m.name,
+                description: m.description,
+                author: m.author,
+                version: m.version,
+                path: None,
+                thumbnail: None,
+                screenshot: None,
+                style: m.style,
+                repo_url: Some(m.download_url),
+                thumbnail_data: None,
+            })
+            .collect())
+    }
+
+    /// Download and install a theme from its repo URL.
+    /// Expects a .tar.gz archive containing the theme directory.
+    pub fn install_from_repo(&self, theme_id: &str, download_url: &str) -> Result<Theme, ThemeError> {
+        let archive_path = self.cache_dir.join(format!("{}.tar.gz", theme_id));
+        let extract_dir = self.cache_dir.join(format!("{}-extract", theme_id));
+
+        // Download the archive
+        let status = std::process::Command::new("curl")
+            .args([
+                "-fsSL",
+                "--connect-timeout", "10",
+                "--max-time", "120",
+                "-o", &archive_path.to_string_lossy(),
+                download_url,
+            ])
+            .status()
+            .or_else(|_| {
+                std::process::Command::new("wget")
+                    .args([
+                        "-q",
+                        "--timeout=10",
+                        "-O", &archive_path.to_string_lossy(),
+                        download_url,
+                    ])
+                    .status()
+            })
+            .map_err(|e| ThemeError::NetworkError(format!("Download failed: {}", e)))?;
+
+        if !status.success() {
+            return Err(ThemeError::NetworkError(format!(
+                "Failed to download theme from {}",
+                download_url
+            )));
+        }
+
+        // Extract the archive
+        fs::create_dir_all(&extract_dir)?;
+        let extract_status = std::process::Command::new("tar")
+            .args([
+                "xzf",
+                &archive_path.to_string_lossy(),
+                "-C", &extract_dir.to_string_lossy(),
+            ])
+            .status()
+            .map_err(|e| ThemeError::Invalid(format!("tar not available: {}", e)))?;
+
+        if !extract_status.success() {
+            // Clean up
+            let _ = fs::remove_file(&archive_path);
+            let _ = fs::remove_dir_all(&extract_dir);
+            return Err(ThemeError::Invalid("Failed to extract theme archive".into()));
+        }
+
+        // Find the theme directory (could be the extract dir itself or a subdirectory)
+        let theme_source = if extract_dir.join("theme.toml").exists() {
+            extract_dir.clone()
+        } else {
+            // Look for a subdirectory containing theme.toml
+            let mut found = None;
+            if let Ok(entries) = fs::read_dir(&extract_dir) {
+                for entry in entries.flatten() {
+                    if entry.path().join("theme.toml").exists() {
+                        found = Some(entry.path());
+                        break;
+                    }
+                }
+            }
+            found.ok_or_else(|| ThemeError::Invalid("No theme.toml found in archive".into()))?
+        };
+
+        // Install from the extracted directory
+        let result = self.install_from_dir(&theme_source);
+
+        // Clean up
+        let _ = fs::remove_file(&archive_path);
+        let _ = fs::remove_dir_all(&extract_dir);
+
+        result
     }
 }
 
@@ -482,7 +616,6 @@ fn base64_encode(data: &[u8]) -> String {
 }
 
 /// Recursively copy a directory
-#[allow(dead_code)]
 fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), ThemeError> {
     fs::create_dir_all(dst)?;
     for entry in fs::read_dir(src)? {

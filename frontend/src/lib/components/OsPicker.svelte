@@ -3,6 +3,7 @@
   import ConfirmDialog from './ConfirmDialog.svelte';
   import { scanBootEntries, setDefaultBoot } from '../utils/api.js';
   import { formatError } from '../utils/errors.js';
+  import { getDistroIcon } from '../utils/distro-icons.js';
 
   let bootState = $state(null);
   let loading = $state(true);
@@ -131,6 +132,7 @@
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {#each bootState.entries as entry}
             {@const color = getColor(entry)}
+            {@const icon = getDistroIcon(entry.distro_icon)}
             <button
               class="group relative bg-surface-1 border-2 rounded-xl p-6 text-center transition-all hover:scale-105 hover:shadow-lg {selectedEntry?.id === entry.id ? 'border-accent shadow-accent/20 shadow-lg' : 'border-border hover:border-accent/50'}"
               onclick={() => (selectedEntry = entry)}
@@ -140,13 +142,19 @@
                 <div class="absolute top-2 right-2 bg-success text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">DEFAULT</div>
               {/if}
 
-              <!-- OS Icon circle -->
-              <div
-                class="w-20 h-20 mx-auto rounded-full flex items-center justify-center text-3xl font-bold text-white mb-4 transition-transform group-hover:scale-110"
-                style="background-color: {color};"
-              >
-                {entry.title.charAt(0).toUpperCase()}
-              </div>
+              <!-- OS Icon -->
+              {#if icon}
+                <div class="w-20 h-20 mx-auto mb-4 transition-transform group-hover:scale-110">
+                  {@html icon}
+                </div>
+              {:else}
+                <div
+                  class="w-20 h-20 mx-auto rounded-full flex items-center justify-center text-3xl font-bold text-white mb-4 transition-transform group-hover:scale-110"
+                  style="background-color: {color};"
+                >
+                  {entry.title.charAt(0).toUpperCase()}
+                </div>
+              {/if}
 
               <h3 class="font-semibold text-text-primary text-sm leading-tight">{entry.title}</h3>
 
@@ -202,6 +210,7 @@
           </div>
 
           {#each bootState.entries as entry, i}
+            {@const textIcon = getDistroIcon(entry.distro_icon)}
             <button
               class="w-full text-left px-4 py-2.5 flex items-center gap-4 border-b border-border/50 transition-colors {selectedEntry?.id === entry.id
                 ? 'bg-accent/10 text-accent'
@@ -209,6 +218,9 @@
               onclick={() => (selectedEntry = entry)}
             >
               <span class="w-8 text-text-muted">{i}</span>
+              {#if textIcon}
+                <span class="w-5 h-5 shrink-0">{@html textIcon}</span>
+              {/if}
               <span class="flex-1 text-text-primary truncate">
                 {#if entry.is_default}<span class="text-success">*</span>{/if}
                 {entry.title}

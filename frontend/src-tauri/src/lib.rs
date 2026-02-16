@@ -109,6 +109,9 @@ pub fn run() {
             commands::set_active_theme,
             commands::get_theme_thumbnail,
             commands::get_theme_screenshot,
+            commands::browse_repo_themes,
+            commands::install_repo_theme,
+            commands::uninstall_theme,
             // Clevis/Tang
             commands::get_clevis_status,
             commands::verify_tang_server,
