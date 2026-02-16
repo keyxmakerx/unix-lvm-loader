@@ -548,12 +548,17 @@ pub fn browse_repo_themes(
     repo_url: String,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<Vec<Theme>, AppError> {
-    let state = state.lock().map_err(|_| AppError {
-        code: "LOCK_ERROR".into(),
-        message: "Failed to acquire state lock".into(),
-        details: None,
-    })?;
-    Ok(state.theme_manager.browse_repo(&repo_url)?)
+    // Clone the theme manager so we release the lock before network I/O
+    let theme_manager = {
+        let state = state.lock().map_err(|_| AppError {
+            code: "LOCK_ERROR".into(),
+            message: "Failed to acquire state lock".into(),
+            details: None,
+        })?;
+        state.theme_manager.clone()
+    };
+    // Network I/O happens outside the lock — won't block other commands
+    Ok(theme_manager.browse_repo(&repo_url)?)
 }
 
 #[tauri::command]
@@ -562,24 +567,29 @@ pub fn install_repo_theme(
     download_url: String,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<Theme, AppError> {
-    let state = state.lock().map_err(|_| AppError {
-        code: "LOCK_ERROR".into(),
-        message: "Failed to acquire state lock".into(),
-        details: None,
-    })?;
+    // Log the operation and clone theme manager, then release lock before network I/O
+    let theme_manager = {
+        let state = state.lock().map_err(|_| AppError {
+            code: "LOCK_ERROR".into(),
+            message: "Failed to acquire state lock".into(),
+            details: None,
+        })?;
 
-    state
-        .logger
-        .log_operation(&logging::entry(
-            LogLevel::Info,
-            LogCategory::ThemeChange,
-            format!("Installing theme: {} from {}", theme_id, download_url),
-            None,
-            None,
-        ))
-        .ok();
+        state
+            .logger
+            .log_operation(&logging::entry(
+                LogLevel::Info,
+                LogCategory::ThemeChange,
+                format!("Installing theme: {} from {}", theme_id, download_url),
+                None,
+                None,
+            ))
+            .ok();
 
-    Ok(state.theme_manager.install_from_repo(&theme_id, &download_url)?)
+        state.theme_manager.clone()
+    };
+    // Network I/O + extraction happens outside the lock
+    Ok(theme_manager.install_from_repo(&theme_id, &download_url)?)
 }
 
 #[tauri::command]

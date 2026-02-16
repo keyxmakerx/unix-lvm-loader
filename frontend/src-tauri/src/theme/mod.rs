@@ -70,9 +70,9 @@ pub struct ThemeManifest {
 }
 
 /// Manages themes: local installation, remote repo browsing, preview generation
+#[derive(Clone)]
 pub struct ThemeManager {
     themes_dir: PathBuf,
-    #[allow(dead_code)]
     cache_dir: PathBuf,
 }
 
@@ -392,13 +392,13 @@ style = "graphical"
         Ok(())
     }
 
-    /// Get themes directory
+    /// Get themes directory (public API for extensions)
     #[allow(dead_code)]
     pub fn themes_dir(&self) -> &Path {
         &self.themes_dir
     }
 
-    /// Get cache directory
+    /// Get cache directory (public API for extensions)
     #[allow(dead_code)]
     pub fn cache_dir(&self) -> &Path {
         &self.cache_dir
