@@ -7,6 +7,8 @@
   import LuksManager from './lib/components/LuksManager.svelte';
   import BackupManager from './lib/components/BackupManager.svelte';
   import LogViewer from './lib/components/LogViewer.svelte';
+  import ClevisManager from './lib/components/ClevisManager.svelte';
+  import RecoveryMode from './lib/components/RecoveryMode.svelte';
 
   let currentPage = $state('dashboard');
   let distroName = $state('');
@@ -39,6 +41,10 @@
       <LuksManager />
     {:else if currentPage === 'backups'}
       <BackupManager />
+    {:else if currentPage === 'clevis'}
+      <ClevisManager />
+    {:else if currentPage === 'recovery'}
+      <RecoveryMode />
     {:else if currentPage === 'logs'}
       <LogViewer />
     {/if}

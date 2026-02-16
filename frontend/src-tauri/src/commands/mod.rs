@@ -1,9 +1,11 @@
 use crate::backup::{BackupManager, BackupRecord, BackupType};
 use crate::boot::{BootEntry, BootState};
+use crate::clevis;
 use crate::distro::DistroInfo;
 use crate::logging::{self, AuditLogger, LogCategory, LogEntry, LogLevel};
 use crate::luks::LuksInfo;
 use crate::lvm::LvmState;
+use crate::recovery;
 use crate::theme::{Theme, ThemeManager};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -80,6 +82,26 @@ impl From<crate::theme::ThemeError> for AppError {
     fn from(e: crate::theme::ThemeError) -> Self {
         AppError {
             code: "THEME_ERROR".into(),
+            message: e.to_string(),
+            details: None,
+        }
+    }
+}
+
+impl From<crate::clevis::ClevisError> for AppError {
+    fn from(e: crate::clevis::ClevisError) -> Self {
+        AppError {
+            code: "CLEVIS_ERROR".into(),
+            message: e.to_string(),
+            details: None,
+        }
+    }
+}
+
+impl From<crate::recovery::RecoveryError> for AppError {
+    fn from(e: crate::recovery::RecoveryError) -> Self {
+        AppError {
+            code: "RECOVERY_ERROR".into(),
             message: e.to_string(),
             details: None,
         }
@@ -546,6 +568,152 @@ pub fn export_logs(
         message: e.to_string(),
         details: None,
     })?)
+}
+
+// ═══════════════════════════════════════════════════════
+// CLEVIS COMMANDS
+// ═══════════════════════════════════════════════════════
+
+#[tauri::command]
+pub fn get_clevis_status() -> clevis::ClevisStatus {
+    clevis::detect_status()
+}
+
+#[tauri::command]
+pub fn verify_tang_server(
+    url: String,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<clevis::TangAdvertisement, AppError> {
+    let state = state.lock().map_err(|_| AppError {
+        code: "LOCK_ERROR".into(),
+        message: "Failed to acquire state lock".into(),
+        details: None,
+    })?;
+    Ok(clevis::verify_tang_server(&url, &state.logger)?)
+}
+
+#[tauri::command]
+pub fn list_clevis_bindings(
+    device: String,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<Vec<clevis::ClevisBinding>, AppError> {
+    let state = state.lock().map_err(|_| AppError {
+        code: "LOCK_ERROR".into(),
+        message: "Failed to acquire state lock".into(),
+        details: None,
+    })?;
+    Ok(clevis::list_bindings(&device, &state.logger)?)
+}
+
+#[tauri::command]
+pub fn bind_tang(
+    device: String,
+    tang_url: String,
+    thumbprint: Option<String>,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<(), AppError> {
+    let state = state.lock().map_err(|_| AppError {
+        code: "LOCK_ERROR".into(),
+        message: "Failed to acquire state lock".into(),
+        details: None,
+    })?;
+
+    // SAFETY: Backup LUKS header and crypttab before binding
+    let info = crate::luks::get_luks_info(&device, &state.logger)?;
+    state
+        .backup_manager
+        .backup_luks_header(&device, &info.uuid, &state.logger)?;
+    state.backup_manager.backup_crypttab(&state.logger).ok(); // OK if crypttab missing
+
+    clevis::bind_tang(
+        &device,
+        &tang_url,
+        thumbprint.as_deref(),
+        &state.logger,
+    )?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn bind_sss(
+    device: String,
+    threshold: u32,
+    pins: Vec<clevis::SssPin>,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<(), AppError> {
+    let state = state.lock().map_err(|_| AppError {
+        code: "LOCK_ERROR".into(),
+        message: "Failed to acquire state lock".into(),
+        details: None,
+    })?;
+
+    // SAFETY: Backup LUKS header before SSS binding
+    let info = crate::luks::get_luks_info(&device, &state.logger)?;
+    state
+        .backup_manager
+        .backup_luks_header(&device, &info.uuid, &state.logger)?;
+
+    let policy = clevis::SssPolicy { threshold, pins };
+    clevis::bind_sss(&device, &policy, &state.logger)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn unbind_clevis(
+    device: String,
+    slot: u32,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<(), AppError> {
+    let state = state.lock().map_err(|_| AppError {
+        code: "LOCK_ERROR".into(),
+        message: "Failed to acquire state lock".into(),
+        details: None,
+    })?;
+
+    // SAFETY: Backup before unbinding
+    let info = crate::luks::get_luks_info(&device, &state.logger)?;
+    state
+        .backup_manager
+        .backup_luks_header(&device, &info.uuid, &state.logger)?;
+
+    clevis::unbind(&device, slot, &state.logger)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_clevis_install_instructions() -> String {
+    clevis::get_install_instructions()
+}
+
+// ═══════════════════════════════════════════════════════
+// RECOVERY COMMANDS
+// ═══════════════════════════════════════════════════════
+
+#[tauri::command]
+pub fn run_diagnostics(
+    state: State<'_, Mutex<AppState>>,
+) -> Result<recovery::DiagnosticResult, AppError> {
+    let state = state.lock().map_err(|_| AppError {
+        code: "LOCK_ERROR".into(),
+        message: "Failed to acquire state lock".into(),
+        details: None,
+    })?;
+    Ok(recovery::run_diagnostics(
+        &state.backup_manager,
+        &state.logger,
+    ))
+}
+
+#[tauri::command]
+pub fn get_recovery_backups(
+    state: State<'_, Mutex<AppState>>,
+) -> Result<Vec<crate::backup::BackupRecord>, AppError> {
+    let state = state.lock().map_err(|_| AppError {
+        code: "LOCK_ERROR".into(),
+        message: "Failed to acquire state lock".into(),
+        details: None,
+    })?;
+    Ok(recovery::get_recovery_backups(&state.backup_manager)?)
 }
 
 // ═══════════════════════════════════════════════════════

@@ -1,5 +1,6 @@
 mod backup;
 mod boot;
+mod clevis;
 mod commands;
 mod distro;
 mod initramfs;
@@ -7,6 +8,7 @@ mod logging;
 mod luks;
 mod lvm;
 mod privilege;
+mod recovery;
 mod theme;
 
 use commands::AppState;
@@ -88,6 +90,17 @@ pub fn run() {
             commands::set_active_theme,
             commands::get_theme_thumbnail,
             commands::get_theme_screenshot,
+            // Clevis/Tang
+            commands::get_clevis_status,
+            commands::verify_tang_server,
+            commands::list_clevis_bindings,
+            commands::bind_tang,
+            commands::bind_sss,
+            commands::unbind_clevis,
+            commands::get_clevis_install_instructions,
+            // Recovery
+            commands::run_diagnostics,
+            commands::get_recovery_backups,
             // Logging
             commands::get_recent_logs,
             commands::get_audit_logs,

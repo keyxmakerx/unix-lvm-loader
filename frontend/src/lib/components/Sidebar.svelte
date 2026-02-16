@@ -6,7 +6,9 @@
     { id: 'os-picker', label: 'OS Picker', icon: '&#9654;' },
     { id: 'themes', label: 'Themes', icon: '&#9733;' },
     { id: 'luks', label: 'LUKS Manager', icon: '&#128274;' },
+    { id: 'clevis', label: 'Network Unlock', icon: '&#128279;' },
     { id: 'backups', label: 'Backups', icon: '&#128190;' },
+    { id: 'recovery', label: 'Recovery', icon: '&#128657;' },
     { id: 'logs', label: 'Logs', icon: '&#128196;' },
   ];
 </script>

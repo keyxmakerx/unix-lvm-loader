@@ -34,6 +34,19 @@ export const backupLuksHeader = (device) => invoke('backup_luks_header', { devic
 export const restoreLuksHeader = (device, backupId) => invoke('restore_luks_header', { device, backupId });
 export const backupCrypttab = () => invoke('backup_crypttab');
 
+// ─── Clevis/Tang ───
+export const getClevisStatus = () => invoke('get_clevis_status');
+export const verifyTangServer = (url) => invoke('verify_tang_server', { url });
+export const listClevisBindings = (device) => invoke('list_clevis_bindings', { device });
+export const bindTang = (device, tangUrl, thumbprint = null) => invoke('bind_tang', { device, tangUrl, thumbprint });
+export const bindSss = (device, threshold, pins) => invoke('bind_sss', { device, threshold, pins });
+export const unbindClevis = (device, slot) => invoke('unbind_clevis', { device, slot });
+export const getClevisInstallInstructions = () => invoke('get_clevis_install_instructions');
+
+// ─── Recovery ───
+export const runDiagnostics = () => invoke('run_diagnostics');
+export const getRecoveryBackups = () => invoke('get_recovery_backups');
+
 // ─── Theme ───
 export const listThemes = () => invoke('list_themes');
 export const setActiveTheme = (themeId) => invoke('set_active_theme', { themeId });
