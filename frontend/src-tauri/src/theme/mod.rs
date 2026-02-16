@@ -11,6 +11,7 @@ pub enum ThemeError {
     NotFound(String),
     #[error("Invalid theme: {0}")]
     Invalid(String),
+    #[allow(dead_code)]
     #[error("Network error: {0}")]
     NetworkError(String),
 }
@@ -49,6 +50,7 @@ pub enum ThemeStyle {
 }
 
 /// Theme repository index (fetched from remote)
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThemeIndex {
     pub version: u32,
@@ -56,6 +58,7 @@ pub struct ThemeIndex {
 }
 
 /// A theme entry from the remote repository
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThemeManifest {
     pub id: String,
@@ -72,6 +75,7 @@ pub struct ThemeManifest {
 /// Manages themes: local installation, remote repo browsing, preview generation
 pub struct ThemeManager {
     themes_dir: PathBuf,
+    #[allow(dead_code)]
     cache_dir: PathBuf,
 }
 
@@ -296,6 +300,7 @@ impl ThemeManager {
     }
 
     /// Install a theme from a directory (e.g., downloaded/extracted)
+    #[allow(dead_code)]
     pub fn install_from_dir(&self, source: &Path) -> Result<Theme, ThemeError> {
         let manifest_path = source.join("theme.toml");
         if !manifest_path.exists() {
@@ -330,6 +335,7 @@ impl ThemeManager {
     }
 
     /// Uninstall a theme
+    #[allow(dead_code)]
     pub fn uninstall(&self, theme_id: &str) -> Result<(), ThemeError> {
         let theme_dir = self.themes_dir.join(theme_id);
         if !theme_dir.exists() {
@@ -391,11 +397,13 @@ style = "graphical"
     }
 
     /// Get themes directory
+    #[allow(dead_code)]
     pub fn themes_dir(&self) -> &Path {
         &self.themes_dir
     }
 
     /// Get cache directory
+    #[allow(dead_code)]
     pub fn cache_dir(&self) -> &Path {
         &self.cache_dir
     }
@@ -432,6 +440,7 @@ fn base64_encode(data: &[u8]) -> String {
 }
 
 /// Recursively copy a directory
+#[allow(dead_code)]
 fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), ThemeError> {
     fs::create_dir_all(dst)?;
     for entry in fs::read_dir(src)? {

@@ -57,3 +57,7 @@ export const getThemeScreenshot = (themeId) => invoke('get_theme_screenshot', { 
 export const getRecentLogs = (count = 100) => invoke('get_recent_logs', { count });
 export const getAuditLogs = (count = 100) => invoke('get_audit_logs', { count });
 export const exportLogs = () => invoke('export_logs');
+
+// ─── Demo Mode ───
+export const getDemoMode = () => invoke('get_demo_mode');
+export const setDemoMode = (enabled) => invoke('set_demo_mode', { enabled });

@@ -11,6 +11,7 @@ pub enum RecoveryError {
     Io(#[from] std::io::Error),
     #[error("Recovery action failed: {0}")]
     ActionFailed(String),
+    #[allow(dead_code)]
     #[error("No recovery possible: {0}")]
     NoRecovery(String),
 }

@@ -17,6 +17,7 @@ pub enum BackupError {
     VerificationFailed { expected: String, actual: String },
     #[error("Backup not found: {0}")]
     NotFound(String),
+    #[allow(dead_code)]
     #[error("No backup directory configured")]
     NoBackupDir,
 }
@@ -48,6 +49,7 @@ pub struct BackupRecord {
 
 /// Manages the 5-layer backup system
 pub struct BackupManager {
+    #[allow(dead_code)]
     base_dir: PathBuf,
     headers_dir: PathBuf,
     crypttab_dir: PathBuf,
@@ -359,6 +361,7 @@ impl BackupManager {
     }
 
     /// Restore crypttab from a backup
+    #[allow(dead_code)]
     pub fn restore_crypttab(
         &self,
         backup_id: &str,
@@ -524,6 +527,7 @@ impl BackupManager {
     }
 
     /// Get the base backup directory
+    #[allow(dead_code)]
     pub fn base_dir(&self) -> &Path {
         &self.base_dir
     }

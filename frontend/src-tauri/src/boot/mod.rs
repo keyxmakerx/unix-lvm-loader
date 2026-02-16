@@ -1,4 +1,4 @@
-use crate::distro::{DistroFamily, DistroInfo};
+use crate::distro::DistroInfo;
 use crate::logging::{self, AuditLogger, LogCategory, LogLevel};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -13,6 +13,7 @@ pub enum BootError {
     Io(#[from] std::io::Error),
     #[error("Command failed: {0}")]
     CommandFailed(String),
+    #[allow(dead_code)]
     #[error("Parse error: {0}")]
     ParseError(String),
     #[error("Boot loader not detected")]

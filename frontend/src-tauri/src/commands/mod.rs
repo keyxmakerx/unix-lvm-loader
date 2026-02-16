@@ -1,5 +1,5 @@
 use crate::backup::{BackupManager, BackupRecord, BackupType};
-use crate::boot::{BootEntry, BootState};
+use crate::boot::BootState;
 use crate::clevis;
 use crate::distro::DistroInfo;
 use crate::logging::{self, AuditLogger, LogCategory, LogEntry, LogLevel};
@@ -17,7 +17,9 @@ pub struct AppState {
     pub logger: AuditLogger,
     pub backup_manager: BackupManager,
     pub theme_manager: ThemeManager,
+    #[allow(dead_code)]
     pub data_dir: PathBuf,
+    pub demo_mode: bool,
 }
 
 /// Wrapper for error results sent to frontend
@@ -147,6 +149,9 @@ pub fn scan_luks_volumes(state: State<'_, Mutex<AppState>>) -> Result<Vec<String
         message: "Failed to acquire state lock".into(),
         details: None,
     })?;
+    if state.demo_mode {
+        return Ok(vec!["/dev/sda3".into(), "/dev/nvme0n1p3".into()]);
+    }
     Ok(crate::luks::detect_luks_volumes(&state.logger)?)
 }
 
@@ -160,6 +165,9 @@ pub fn get_luks_info(
         message: "Failed to acquire state lock".into(),
         details: None,
     })?;
+    if state.demo_mode {
+        return Ok(crate::demo::demo_luks_info(&device));
+    }
     Ok(crate::luks::get_luks_info(&device, &state.logger)?)
 }
 
@@ -245,6 +253,10 @@ pub fn scan_lvm(state: State<'_, Mutex<AppState>>) -> Result<LvmState, AppError>
         message: "Failed to acquire state lock".into(),
         details: None,
     })?;
+    if state.demo_mode {
+        let overview = crate::demo::demo_system_overview();
+        return Ok(overview.lvm);
+    }
     Ok(crate::lvm::scan(&state.logger)?)
 }
 
@@ -261,6 +273,14 @@ pub fn scan_boot_entries(
         message: "Failed to acquire state lock".into(),
         details: None,
     })?;
+    if state.demo_mode {
+        let overview = crate::demo::demo_system_overview();
+        return overview.boot.ok_or_else(|| AppError {
+            code: "DEMO_ERROR".into(),
+            message: "No demo boot data".into(),
+            details: None,
+        });
+    }
     let distro = crate::distro::detect()?;
     Ok(crate::boot::scan_boot_entries(&distro, &state.logger)?)
 }
@@ -575,8 +595,18 @@ pub fn export_logs(
 // ═══════════════════════════════════════════════════════
 
 #[tauri::command]
-pub fn get_clevis_status() -> clevis::ClevisStatus {
-    clevis::detect_status()
+pub fn get_clevis_status(
+    state: State<'_, Mutex<AppState>>,
+) -> Result<clevis::ClevisStatus, AppError> {
+    let state = state.lock().map_err(|_| AppError {
+        code: "LOCK_ERROR".into(),
+        message: "Failed to acquire state lock".into(),
+        details: None,
+    })?;
+    if state.demo_mode {
+        return Ok(crate::demo::demo_clevis_status());
+    }
+    Ok(clevis::detect_status())
 }
 
 #[tauri::command]
@@ -602,6 +632,9 @@ pub fn list_clevis_bindings(
         message: "Failed to acquire state lock".into(),
         details: None,
     })?;
+    if state.demo_mode {
+        return Ok(crate::demo::demo_clevis_bindings());
+    }
     Ok(clevis::list_bindings(&device, &state.logger)?)
 }
 
@@ -698,6 +731,9 @@ pub fn run_diagnostics(
         message: "Failed to acquire state lock".into(),
         details: None,
     })?;
+    if state.demo_mode {
+        return Ok(crate::demo::demo_diagnostics());
+    }
     Ok(recovery::run_diagnostics(
         &state.backup_manager,
         &state.logger,
@@ -741,6 +777,10 @@ pub fn get_system_overview(
         details: None,
     })?;
 
+    if state.demo_mode {
+        return Ok(crate::demo::demo_system_overview());
+    }
+
     let distro = crate::distro::detect().ok();
     let luks_volumes = crate::luks::detect_luks_volumes(&state.logger).unwrap_or_default();
     let lvm = crate::lvm::scan(&state.logger).unwrap_or(LvmState {
@@ -767,4 +807,42 @@ pub fn get_system_overview(
         has_cryptenroll,
         privilege,
     })
+}
+
+// ═══════════════════════════════════════════════════════
+// DEMO MODE COMMANDS
+// ═══════════════════════════════════════════════════════
+
+#[tauri::command]
+pub fn get_demo_mode(state: State<'_, Mutex<AppState>>) -> Result<bool, AppError> {
+    let state = state.lock().map_err(|_| AppError {
+        code: "LOCK_ERROR".into(),
+        message: "Failed to acquire state lock".into(),
+        details: None,
+    })?;
+    Ok(state.demo_mode)
+}
+
+#[tauri::command]
+pub fn set_demo_mode(
+    enabled: bool,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<(), AppError> {
+    let mut state = state.lock().map_err(|_| AppError {
+        code: "LOCK_ERROR".into(),
+        message: "Failed to acquire state lock".into(),
+        details: None,
+    })?;
+    state.demo_mode = enabled;
+    state
+        .logger
+        .log_operation(&crate::logging::entry(
+            crate::logging::LogLevel::Info,
+            crate::logging::LogCategory::UserAction,
+            format!("Demo mode {}", if enabled { "enabled" } else { "disabled" }),
+            None,
+            None,
+        ))
+        .ok();
+    Ok(())
 }

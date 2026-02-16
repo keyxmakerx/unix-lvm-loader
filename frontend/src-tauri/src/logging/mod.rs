@@ -60,6 +60,7 @@ pub struct LogEntry {
 
 /// Manages operation and audit logging with file persistence
 pub struct AuditLogger {
+    #[allow(dead_code)]
     log_dir: PathBuf,
     operations_file: Mutex<PathBuf>,
     audit_file: Mutex<PathBuf>,
@@ -140,6 +141,7 @@ impl AuditLogger {
     }
 
     /// Get all entries matching a category
+    #[allow(dead_code)]
     pub fn filter_by_category(&self, category: &LogCategory) -> Result<Vec<LogEntry>, LogError> {
         let path = self.operations_file.lock().map_err(|_| LogError::LockPoisoned)?;
         if !path.exists() {
@@ -162,6 +164,7 @@ impl AuditLogger {
     }
 
     /// Get the log directory path
+    #[allow(dead_code)]
     pub fn log_dir(&self) -> &Path {
         &self.log_dir
     }

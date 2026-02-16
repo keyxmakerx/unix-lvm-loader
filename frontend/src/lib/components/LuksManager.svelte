@@ -13,6 +13,7 @@
     getInitramfsInfo,
     rebuildInitramfs,
   } from '../utils/api.js';
+  import { formatError } from '../utils/errors.js';
 
   let volumes = $state([]);
   let selectedDevice = $state(null);
@@ -49,7 +50,8 @@
         await selectDevice(volumes[0]);
       }
     } catch (e) {
-      error = e?.message || String(e);
+      const err = formatError(e);
+      error = err;
     } finally {
       loading = false;
     }
@@ -62,7 +64,8 @@
     try {
       luksInfo = await getLuksInfo(device);
     } catch (e) {
-      error = e?.message || String(e);
+      const err = formatError(e);
+      error = err;
     } finally {
       loadingInfo = false;
     }
@@ -149,7 +152,8 @@
       // Refresh info
       luksInfo = await getLuksInfo(selectedDevice);
     } catch (e) {
-      actionStatus = { type: 'error', message: e?.message || String(e) };
+      const err = formatError(e);
+      actionStatus = { type: 'error', title: err.title, message: err.message, hint: err.hint };
     } finally {
       actionLoading = null;
     }
@@ -178,8 +182,11 @@
     </div>
   {:else if error}
     <div class="bg-danger/10 border border-danger/30 rounded-lg p-4 text-danger">
-      <p class="font-semibold">Error</p>
-      <p class="text-sm mt-1">{error}</p>
+      <p class="font-semibold">{error.title || 'Error'}</p>
+      <p class="text-sm mt-1">{error.message}</p>
+      {#if error.hint}
+        <p class="text-xs mt-2 opacity-80">{error.hint}</p>
+      {/if}
     </div>
   {:else if volumes.length === 0}
     <div class="bg-surface-1 border border-border rounded-lg p-8 text-center">
@@ -326,7 +333,13 @@
         <div class="rounded-lg p-4 {actionStatus.type === 'success'
           ? 'bg-success/10 border border-success/30 text-success'
           : 'bg-danger/10 border border-danger/30 text-danger'}">
-          <pre class="text-sm whitespace-pre-wrap">{actionStatus.message}</pre>
+          {#if actionStatus.title && actionStatus.type === 'error'}
+            <p class="font-semibold">{actionStatus.title}</p>
+          {/if}
+          <pre class="text-sm whitespace-pre-wrap mt-1">{actionStatus.message}</pre>
+          {#if actionStatus.hint}
+            <p class="text-xs mt-2 opacity-80">{actionStatus.hint}</p>
+          {/if}
         </div>
       {/if}
 

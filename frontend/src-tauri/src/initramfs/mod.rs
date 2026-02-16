@@ -10,10 +10,12 @@ use thiserror::Error;
 pub enum InitramfsError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+    #[allow(dead_code)]
     #[error("Command failed: {0}")]
     CommandFailed(String),
     #[error("No initramfs system detected")]
     NoInitramfsSystem,
+    #[allow(dead_code)]
     #[error("Backup failed before rebuild: {0}")]
     BackupFailed(String),
 }

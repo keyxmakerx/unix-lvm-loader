@@ -7,10 +7,13 @@ use thiserror::Error;
 pub enum LvmError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+    #[allow(dead_code)]
     #[error("Command failed: {0}")]
     CommandFailed(String),
+    #[allow(dead_code)]
     #[error("Parse error: {0}")]
     ParseError(String),
+    #[allow(dead_code)]
     #[error("LVM not available")]
     NotAvailable,
 }

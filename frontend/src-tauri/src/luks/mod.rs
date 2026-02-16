@@ -10,10 +10,12 @@ pub enum LuksError {
     Io(#[from] std::io::Error),
     #[error("Command failed: {0}")]
     CommandFailed(String),
+    #[allow(dead_code)]
     #[error("Parse error: {0}")]
     ParseError(String),
     #[error("Safety check failed: {0}")]
     SafetyCheck(String),
+    #[allow(dead_code)]
     #[error("Device not found: {0}")]
     DeviceNotFound(String),
 }
@@ -27,6 +29,7 @@ pub enum LuksVersion {
 }
 
 /// Key derivation function
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Kdf {
     Pbkdf2,
@@ -362,6 +365,7 @@ fn parse_tokens(dump: &str) -> Vec<LuksToken> {
 
 /// Count how many passphrase-type key slots are active
 /// Used for safety checks — never allow removing the last one
+#[allow(dead_code)]
 pub fn count_passphrase_slots(info: &LuksInfo) -> u32 {
     info.key_slots
         .iter()
@@ -370,6 +374,7 @@ pub fn count_passphrase_slots(info: &LuksInfo) -> u32 {
 }
 
 /// Safety check: would this operation leave the user locked out?
+#[allow(dead_code)]
 pub fn safety_check_key_removal(info: &LuksInfo, slot_to_remove: u32) -> Result<(), LuksError> {
     let remaining = info
         .key_slots

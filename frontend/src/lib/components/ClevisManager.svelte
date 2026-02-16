@@ -11,6 +11,7 @@
   } from '../utils/api.js';
   import ConfirmDialog from './ConfirmDialog.svelte';
   import Toast from './Toast.svelte';
+  import { formatError } from '../utils/errors.js';
 
   let status = $state(null);
   let volumes = $state([]);
@@ -90,7 +91,8 @@
       tangVerification = await verifyTangServer(tangUrl.trim());
     } catch (e) {
       tangVerification = { reachable: false, url: tangUrl };
-      toast?.show('Failed to verify Tang server: ' + e.message, 'error');
+      const err = formatError(e);
+      toast?.show(`${err.title}: ${err.message}`, 'error');
     }
     tangVerifying = false;
   }
@@ -113,7 +115,8 @@
           showTangWizard = false;
           await loadBindings();
         } catch (e) {
-          toast?.show('Tang binding failed: ' + e.message, 'error');
+          const err = formatError(e);
+          toast?.show(`${err.title}: ${err.message}`, 'error');
         }
         tangBinding = false;
       },
@@ -133,7 +136,8 @@
           toast?.show(`Binding removed from slot ${slot}`, 'success');
           await loadBindings();
         } catch (e) {
-          toast?.show('Failed to remove binding: ' + e.message, 'error');
+          const err = formatError(e);
+          toast?.show(`${err.title}: ${err.message}`, 'error');
         }
       },
     });

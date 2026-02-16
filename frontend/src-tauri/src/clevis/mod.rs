@@ -14,8 +14,10 @@ pub enum ClevisError {
     NotInstalled,
     #[error("Tang server unreachable: {0}")]
     TangUnreachable(String),
+    #[allow(dead_code)]
     #[error("Safety check failed: {0}")]
     SafetyCheck(String),
+    #[allow(dead_code)]
     #[error("Parse error: {0}")]
     ParseError(String),
 }

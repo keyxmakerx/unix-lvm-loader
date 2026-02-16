@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::process::Command;
 use thiserror::Error;
 
+#[allow(dead_code)]
 #[derive(Error, Debug)]
 pub enum PrivilegeError {
     #[error("IO error: {0}")]
@@ -40,7 +41,7 @@ pub struct PrivilegeInfo {
 
 /// Detect current privileges
 pub fn detect() -> PrivilegeInfo {
-    let uid = unsafe { libc_geteuid() };
+    let uid = libc_geteuid();
     let level = if uid == 0 {
         PrivilegeLevel::Root
     } else {
@@ -70,6 +71,7 @@ pub fn detect() -> PrivilegeInfo {
 }
 
 /// Execute a command with privilege escalation if needed
+#[allow(dead_code)]
 pub fn run_privileged(
     program: &str,
     args: &[&str],
@@ -163,6 +165,7 @@ fn libc_geteuid() -> u32 {
 
 /// Install a polkit policy file for passwordless access to specific commands
 /// This is the recommended approach for GUI apps that need root for specific operations
+#[allow(dead_code)]
 pub fn install_polkit_policy() -> Result<(), PrivilegeError> {
     let policy = r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE policyconfig PUBLIC

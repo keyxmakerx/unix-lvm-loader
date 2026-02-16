@@ -1,23 +1,26 @@
 <script>
   import { onMount } from 'svelte';
-  import { getSystemOverview, getClevisStatus, runDiagnostics } from '../utils/api.js';
+  import { getSystemOverview, getClevisStatus, runDiagnostics, getDemoMode } from '../utils/api.js';
 
   let overview = $state(null);
   let clevisStatus = $state(null);
   let diagnostics = $state(null);
   let loading = $state(true);
   let error = $state(null);
+  let demoMode = $state(false);
 
   onMount(async () => {
     try {
-      const [ov, cs, diag] = await Promise.allSettled([
+      const [ov, cs, diag, dm] = await Promise.allSettled([
         getSystemOverview(),
         getClevisStatus(),
         runDiagnostics(),
+        getDemoMode(),
       ]);
       overview = ov.status === 'fulfilled' ? ov.value : null;
       clevisStatus = cs.status === 'fulfilled' ? cs.value : null;
       diagnostics = diag.status === 'fulfilled' ? diag.value : null;
+      demoMode = dm.status === 'fulfilled' ? dm.value : false;
       if (!overview) {
         error = ov.reason?.message || 'Failed to load system overview';
       }
@@ -43,6 +46,16 @@
 
 <div class="p-6 space-y-6">
   <h2 class="text-2xl font-bold text-text-primary">System Dashboard</h2>
+
+  {#if demoMode}
+    <div class="bg-warning/10 border border-warning/30 rounded-lg px-4 py-3 flex items-center gap-3">
+      <span class="text-warning text-lg">&#9881;</span>
+      <div>
+        <p class="text-sm font-medium text-warning">Demo Mode Active</p>
+        <p class="text-xs text-text-muted">Showing simulated data from a Fedora 41 workstation with LUKS2-on-LVM. Toggle off in the sidebar to see real system data.</p>
+      </div>
+    </div>
+  {/if}
 
   {#if loading}
     <div class="flex items-center gap-3 text-text-secondary">

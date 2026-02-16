@@ -1,5 +1,9 @@
 <script>
+  import { onMount } from 'svelte';
+  import { getDemoMode, setDemoMode } from '../utils/api.js';
+
   let { currentPage = $bindable(), distroName = '' } = $props();
+  let demoMode = $state(false);
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: '&#9632;' },
@@ -11,6 +15,22 @@
     { id: 'recovery', label: 'Recovery', icon: '&#128657;' },
     { id: 'logs', label: 'Logs', icon: '&#128196;' },
   ];
+
+  onMount(async () => {
+    try {
+      demoMode = await getDemoMode();
+    } catch {}
+  });
+
+  async function toggleDemo() {
+    demoMode = !demoMode;
+    await setDemoMode(demoMode);
+    // Force reload current page to reflect demo data
+    const prev = currentPage;
+    currentPage = '';
+    await new Promise(r => setTimeout(r, 50));
+    currentPage = prev;
+  }
 </script>
 
 <aside class="w-56 bg-surface-1 border-r border-border flex flex-col h-screen shrink-0">
@@ -36,6 +56,24 @@
       </button>
     {/each}
   </nav>
+
+  <!-- Demo Mode Toggle -->
+  <div class="px-4 py-3 border-t border-border">
+    <button
+      class="w-full text-left flex items-center gap-2 text-xs transition-colors {demoMode
+        ? 'text-warning'
+        : 'text-text-muted hover:text-text-secondary'}"
+      onclick={toggleDemo}
+    >
+      <span class="w-8 h-4 rounded-full relative inline-block transition-colors {demoMode ? 'bg-warning' : 'bg-surface-3'}">
+        <span class="absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all {demoMode ? 'left-4' : 'left-0.5'}"></span>
+      </span>
+      Demo Mode
+    </button>
+    {#if demoMode}
+      <p class="text-xs text-warning/70 mt-1">Showing simulated data</p>
+    {/if}
+  </div>
 
   <!-- Footer -->
   <div class="p-4 border-t border-border">

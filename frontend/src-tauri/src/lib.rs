@@ -2,6 +2,7 @@ mod backup;
 mod boot;
 mod clevis;
 mod commands;
+mod demo;
 mod distro;
 mod initramfs;
 mod logging;
@@ -42,11 +43,29 @@ pub fn run() {
         ))
         .ok();
 
+    // Check for demo mode via environment variable
+    let demo_mode = std::env::var("UNIX_LVM_LOADER_DEMO")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+
+    if demo_mode {
+        logger
+            .log_operation(&logging::entry(
+                logging::LogLevel::Info,
+                logging::LogCategory::UserAction,
+                "Starting in DEMO mode (UNIX_LVM_LOADER_DEMO=1)",
+                None,
+                None,
+            ))
+            .ok();
+    }
+
     let app_state = Mutex::new(AppState {
         logger,
         backup_manager,
         theme_manager,
         data_dir,
+        demo_mode,
     });
 
     tauri::Builder::default()
@@ -105,6 +124,9 @@ pub fn run() {
             commands::get_recent_logs,
             commands::get_audit_logs,
             commands::export_logs,
+            // Demo mode
+            commands::get_demo_mode,
+            commands::set_demo_mode,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
