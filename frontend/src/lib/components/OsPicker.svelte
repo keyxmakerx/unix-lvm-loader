@@ -1,5 +1,6 @@
 <script>
   import { onMount } from 'svelte';
+  import ConfirmDialog from './ConfirmDialog.svelte';
   import { scanBootEntries, setDefaultBoot } from '../utils/api.js';
 
   let bootState = $state(null);
@@ -8,7 +9,10 @@
   let settingDefault = $state(null);
   let viewMode = $state('graphical'); // 'graphical' (BURG-style) or 'text'
   let selectedEntry = $state(null);
-  let confirmSetDefault = $state(false);
+
+  // Confirmation
+  let confirmOpen = $state(false);
+  let pendingDefaultId = $state(null);
 
   onMount(async () => {
     await loadEntries();
@@ -27,12 +31,19 @@
     }
   }
 
-  async function handleSetDefault(entryId) {
+  function requestSetDefault(entryId) {
+    pendingDefaultId = entryId;
+    confirmOpen = true;
+  }
+
+  async function executeSetDefault() {
+    const entryId = pendingDefaultId;
+    if (!entryId) return;
+    pendingDefaultId = null;
     settingDefault = entryId;
     try {
       await setDefaultBoot(entryId);
       await loadEntries();
-      confirmSetDefault = false;
     } catch (e) {
       error = e?.message || String(e);
     } finally {
@@ -61,6 +72,17 @@
     return distroColors[entry.distro_icon] || '#6366f1';
   }
 </script>
+
+<!-- Set Default Boot Confirmation -->
+<ConfirmDialog
+  bind:open={confirmOpen}
+  level="warning"
+  title="Change Default Boot Entry"
+  message={`This will change the default boot entry to "${bootState?.entries?.find(e => e.id === pendingDefaultId)?.title || pendingDefaultId}". The boot loader configuration will be updated.`}
+  details={`Boot loader: ${bootState?.boot_loader || 'unknown'}\nEntry ID: ${pendingDefaultId || ''}\n\nA backup of your boot configuration will be created before making changes.`}
+  confirmLabel="Set as Default"
+  onconfirm={executeSetDefault}
+/>
 
 <div class="p-6 space-y-6">
   <div class="flex items-center justify-between">
@@ -139,7 +161,7 @@
               {#if !selectedEntry.is_default}
                 <button
                   class="px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-                  onclick={() => handleSetDefault(selectedEntry.id)}
+                  onclick={() => requestSetDefault(selectedEntry.id)}
                   disabled={settingDefault !== null}
                 >
                   {settingDefault === selectedEntry.id ? 'Setting...' : 'Set as Default'}
@@ -200,7 +222,7 @@
           <div class="flex gap-3">
             <button
               class="px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-              onclick={() => handleSetDefault(selectedEntry.id)}
+              onclick={() => requestSetDefault(selectedEntry.id)}
               disabled={settingDefault !== null}
             >
               {settingDefault === selectedEntry.id ? 'Setting...' : 'Set as Default Boot Entry'}

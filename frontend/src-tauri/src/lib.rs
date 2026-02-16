@@ -2,9 +2,11 @@ mod backup;
 mod boot;
 mod commands;
 mod distro;
+mod initramfs;
 mod logging;
 mod luks;
 mod lvm;
+mod privilege;
 mod theme;
 
 use commands::AppState;
@@ -69,6 +71,11 @@ pub fn run() {
             // Boot
             commands::scan_boot_entries,
             commands::set_default_boot,
+            // Initramfs
+            commands::get_initramfs_info,
+            commands::rebuild_initramfs,
+            // Privilege
+            commands::get_privilege_info,
             // Backup
             commands::list_backups,
             commands::verify_backup,

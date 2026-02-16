@@ -19,6 +19,13 @@ export const scanLvm = () => invoke('scan_lvm');
 export const scanBootEntries = () => invoke('scan_boot_entries');
 export const setDefaultBoot = (entryId) => invoke('set_default_boot', { entryId });
 
+// ─── Privilege ───
+export const getPrivilegeInfo = () => invoke('get_privilege_info');
+
+// ─── Initramfs ───
+export const getInitramfsInfo = () => invoke('get_initramfs_info');
+export const rebuildInitramfs = () => invoke('rebuild_initramfs');
+
 // ─── Backup ───
 export const listBackups = (backupType = null) => invoke('list_backups', { backupType });
 export const verifyBackup = (backupId) => invoke('verify_backup', { backupId });

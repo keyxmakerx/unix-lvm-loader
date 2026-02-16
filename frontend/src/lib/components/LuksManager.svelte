@@ -1,5 +1,6 @@
 <script>
   import { onMount } from 'svelte';
+  import ConfirmDialog from './ConfirmDialog.svelte';
   import {
     scanLuksVolumes,
     getLuksInfo,
@@ -8,6 +9,9 @@
     enrollFido2,
     enrollRecoveryKey,
     backupLuksHeader,
+    restoreLuksHeader,
+    getInitramfsInfo,
+    rebuildInitramfs,
   } from '../utils/api.js';
 
   let volumes = $state([]);
@@ -17,8 +21,23 @@
   let loading = $state(true);
   let loadingInfo = $state(false);
   let error = $state(null);
-  let actionStatus = $state(null); // { type: 'success'|'error', message: string }
-  let actionLoading = $state(null); // 'tpm2' | 'fido2' | 'recovery' | 'backup'
+  let actionStatus = $state(null);
+  let actionLoading = $state(null);
+
+  // Initramfs
+  let showRebuildPrompt = $state(false);
+  let rebuildingInitramfs = $state(false);
+  let rebuildResult = $state(null);
+
+  // Confirmation dialog state
+  let confirmOpen = $state(false);
+  let confirmLevel = $state('warning');
+  let confirmTitle = $state('');
+  let confirmMessage = $state('');
+  let confirmDetails = $state(null);
+  let confirmPhrase = $state('');
+  let confirmLabel = $state('Confirm');
+  let pendingAction = $state(null);
 
   onMount(async () => {
     try {
@@ -49,7 +68,60 @@
     }
   }
 
-  async function handleAction(action, label) {
+  // Show confirmation dialog before action
+  function requestAction(action) {
+    pendingAction = action;
+
+    switch (action) {
+      case 'backup':
+        // Backup is safe — just info level
+        confirmLevel = 'info';
+        confirmTitle = 'Backup LUKS Header';
+        confirmMessage = `Create a backup of the LUKS header for ${selectedDevice}. This is a non-destructive read-only operation.`;
+        confirmDetails = `Device: ${selectedDevice}\nUUID: ${luksInfo?.uuid || 'unknown'}`;
+        confirmPhrase = '';
+        confirmLabel = 'Create Backup';
+        break;
+
+      case 'tpm2':
+        confirmLevel = 'warning';
+        confirmTitle = 'Enroll TPM2 Device';
+        confirmMessage = `This will enroll your TPM2 hardware security chip into the LUKS2 volume on ${selectedDevice}. A header backup will be created automatically before enrollment.`;
+        confirmDetails = `Device: ${selectedDevice}\nUUID: ${luksInfo?.uuid || 'unknown'}\n\nAfter enrollment:\n- The system can auto-unlock at boot using the TPM2 chip\n- Your existing passphrase will still work as a fallback\n- You must rebuild initramfs for auto-unlock to take effect`;
+        confirmPhrase = '';
+        confirmLabel = 'Enroll TPM2';
+        break;
+
+      case 'fido2':
+        confirmLevel = 'warning';
+        confirmTitle = 'Enroll FIDO2 Security Key';
+        confirmMessage = `This will enroll a FIDO2 security key (e.g., YubiKey) into the LUKS2 volume on ${selectedDevice}. A header backup will be created automatically. Have your security key ready — you may need to touch it during enrollment.`;
+        confirmDetails = `Device: ${selectedDevice}\nUUID: ${luksInfo?.uuid || 'unknown'}`;
+        confirmPhrase = '';
+        confirmLabel = 'Enroll FIDO2';
+        break;
+
+      case 'recovery':
+        confirmLevel = 'warning';
+        confirmTitle = 'Generate Recovery Key';
+        confirmMessage = `This will generate a recovery key and enroll it into the LUKS2 volume on ${selectedDevice}. IMPORTANT: You must save the recovery key securely — it is your emergency access if all other keys fail. A header backup will be created automatically.`;
+        confirmDetails = `Device: ${selectedDevice}\nUUID: ${luksInfo?.uuid || 'unknown'}`;
+        confirmPhrase = '';
+        confirmLabel = 'Generate Recovery Key';
+        break;
+
+      default:
+        return;
+    }
+
+    confirmOpen = true;
+  }
+
+  async function executeAction() {
+    const action = pendingAction;
+    if (!action) return;
+    pendingAction = null;
+
     actionLoading = action;
     actionStatus = null;
     try {
@@ -58,18 +130,20 @@
         case 'tpm2':
           await enrollTpm2(selectedDevice);
           actionStatus = { type: 'success', message: 'TPM2 enrolled successfully. A LUKS header backup was created automatically.' };
+          showRebuildPrompt = true;
           break;
         case 'fido2':
           await enrollFido2(selectedDevice);
           actionStatus = { type: 'success', message: 'FIDO2 enrolled successfully. A LUKS header backup was created automatically.' };
+          showRebuildPrompt = true;
           break;
         case 'recovery':
           result = await enrollRecoveryKey(selectedDevice);
-          actionStatus = { type: 'success', message: `Recovery key enrolled. SAVE THIS KEY:\n${result}` };
+          actionStatus = { type: 'success', message: `Recovery key enrolled. A LUKS header backup was created automatically.\n\nSAVE THIS KEY SECURELY — print it or store it offline:\n${result}` };
           break;
         case 'backup':
           await backupLuksHeader(selectedDevice);
-          actionStatus = { type: 'success', message: 'LUKS header backup created and verified.' };
+          actionStatus = { type: 'success', message: 'LUKS header backup created and verified with SHA-256 checksum.' };
           break;
       }
       // Refresh info
@@ -81,6 +155,18 @@
     }
   }
 </script>
+
+<!-- Confirmation Dialog -->
+<ConfirmDialog
+  bind:open={confirmOpen}
+  level={confirmLevel}
+  title={confirmTitle}
+  message={confirmMessage}
+  details={confirmDetails}
+  confirmPhrase={confirmPhrase}
+  confirmLabel={confirmLabel}
+  onconfirm={executeAction}
+/>
 
 <div class="p-6 space-y-6">
   <h2 class="text-2xl font-bold text-text-primary">LUKS Manager</h2>
@@ -180,12 +266,12 @@
         <h3 class="font-bold text-text-primary mb-3">Actions</h3>
         <p class="text-sm text-text-muted mb-4">
           All operations automatically create a LUKS header backup before executing.
-          This ensures you can always recover if something goes wrong.
+          You will be asked to confirm before any changes are made.
         </p>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
           <button
             class="p-3 bg-surface-2 hover:bg-surface-3 border border-border rounded-lg text-center transition-colors disabled:opacity-50"
-            onclick={() => handleAction('backup', 'Backup Header')}
+            onclick={() => requestAction('backup')}
             disabled={actionLoading !== null}
           >
             <div class="text-2xl mb-1">&#128190;</div>
@@ -196,7 +282,7 @@
           {#if hasCryptenroll && luksInfo.version === 'Luks2'}
             <button
               class="p-3 bg-surface-2 hover:bg-surface-3 border border-border rounded-lg text-center transition-colors disabled:opacity-50"
-              onclick={() => handleAction('tpm2', 'Enroll TPM2')}
+              onclick={() => requestAction('tpm2')}
               disabled={actionLoading !== null}
             >
               <div class="text-2xl mb-1">&#128272;</div>
@@ -206,7 +292,7 @@
 
             <button
               class="p-3 bg-surface-2 hover:bg-surface-3 border border-border rounded-lg text-center transition-colors disabled:opacity-50"
-              onclick={() => handleAction('fido2', 'Enroll FIDO2')}
+              onclick={() => requestAction('fido2')}
               disabled={actionLoading !== null}
             >
               <div class="text-2xl mb-1">&#128273;</div>
@@ -216,7 +302,7 @@
 
             <button
               class="p-3 bg-surface-2 hover:bg-surface-3 border border-border rounded-lg text-center transition-colors disabled:opacity-50"
-              onclick={() => handleAction('recovery', 'Recovery Key')}
+              onclick={() => requestAction('recovery')}
               disabled={actionLoading !== null}
             >
               <div class="text-2xl mb-1">&#128221;</div>
@@ -241,6 +327,64 @@
           ? 'bg-success/10 border border-success/30 text-success'
           : 'bg-danger/10 border border-danger/30 text-danger'}">
           <pre class="text-sm whitespace-pre-wrap">{actionStatus.message}</pre>
+        </div>
+      {/if}
+
+      <!-- Initramfs Rebuild Prompt (shown after TPM2/FIDO2 enrollment) -->
+      {#if showRebuildPrompt}
+        <div class="bg-warning/10 border border-warning/30 rounded-lg p-5">
+          <div class="flex items-center gap-3 mb-3">
+            <span class="text-warning text-xl">&#9888;</span>
+            <h3 class="font-bold text-warning">Initramfs Rebuild Required</h3>
+          </div>
+          <p class="text-sm text-text-secondary mb-4">
+            For the newly enrolled key to work at boot, the initramfs (initial RAM filesystem)
+            must be rebuilt to include the necessary drivers and configuration. The current
+            initramfs will be backed up automatically before rebuilding.
+          </p>
+
+          {#if rebuildResult}
+            <div class="mb-4 rounded-lg p-3 text-sm {rebuildResult.success
+              ? 'bg-success/10 border border-success/30 text-success'
+              : 'bg-danger/10 border border-danger/30 text-danger'}">
+              <p class="font-medium">{rebuildResult.success ? 'Rebuild successful' : 'Rebuild failed'}</p>
+              <p class="text-xs mt-1 font-mono">Command: {rebuildResult.command_run}</p>
+              {#if !rebuildResult.success && rebuildResult.stderr}
+                <pre class="text-xs mt-2 whitespace-pre-wrap max-h-32 overflow-y-auto">{rebuildResult.stderr}</pre>
+              {/if}
+              {#if rebuildResult.backup_id}
+                <p class="text-xs mt-1">Previous initramfs backed up (ID: {rebuildResult.backup_id.substring(0, 8)}...)</p>
+              {/if}
+            </div>
+          {/if}
+
+          <div class="flex gap-3">
+            <button
+              class="px-4 py-2 bg-warning hover:bg-warning/80 text-black rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              onclick={async () => {
+                rebuildingInitramfs = true;
+                try {
+                  rebuildResult = await rebuildInitramfs();
+                  if (rebuildResult.success) {
+                    showRebuildPrompt = false;
+                  }
+                } catch (e) {
+                  rebuildResult = { success: false, stderr: e?.message || String(e), command_run: 'unknown', stdout: '', initramfs_system: 'unknown', backup_id: null };
+                } finally {
+                  rebuildingInitramfs = false;
+                }
+              }}
+              disabled={rebuildingInitramfs}
+            >
+              {rebuildingInitramfs ? 'Rebuilding...' : 'Rebuild Initramfs Now'}
+            </button>
+            <button
+              class="px-4 py-2 bg-surface-2 hover:bg-surface-3 border border-border rounded-lg text-sm text-text-secondary transition-colors"
+              onclick={() => { showRebuildPrompt = false; }}
+            >
+              Skip for Now
+            </button>
+          </div>
         </div>
       {/if}
     {/if}

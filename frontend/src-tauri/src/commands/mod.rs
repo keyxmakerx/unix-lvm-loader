@@ -267,6 +267,58 @@ pub fn set_default_boot(
 }
 
 // ═══════════════════════════════════════════════════════
+// INITRAMFS COMMANDS
+// ═══════════════════════════════════════════════════════
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InitramfsInfo {
+    pub rebuild_needed: bool,
+    pub description: String,
+    pub initramfs_system: String,
+}
+
+#[tauri::command]
+pub fn get_initramfs_info(
+    state: State<'_, Mutex<AppState>>,
+) -> Result<InitramfsInfo, AppError> {
+    let _state = state.lock().map_err(|_| AppError {
+        code: "LOCK_ERROR".into(),
+        message: "Failed to acquire state lock".into(),
+        details: None,
+    })?;
+    let distro = crate::distro::detect()?;
+    let rebuild_needed = crate::initramfs::check_rebuild_needed(&distro);
+    let description = crate::initramfs::describe_rebuild(&distro);
+
+    Ok(InitramfsInfo {
+        rebuild_needed,
+        description,
+        initramfs_system: format!("{:?}", distro.initramfs),
+    })
+}
+
+#[tauri::command]
+pub fn rebuild_initramfs(
+    state: State<'_, Mutex<AppState>>,
+) -> Result<crate::initramfs::RebuildResult, AppError> {
+    let state = state.lock().map_err(|_| AppError {
+        code: "LOCK_ERROR".into(),
+        message: "Failed to acquire state lock".into(),
+        details: None,
+    })?;
+    let distro = crate::distro::detect()?;
+
+    let result = crate::initramfs::rebuild(&distro, &state.backup_manager, &state.logger)
+        .map_err(|e| AppError {
+            code: "INITRAMFS_ERROR".into(),
+            message: e.to_string(),
+            details: None,
+        })?;
+
+    Ok(result)
+}
+
+// ═══════════════════════════════════════════════════════
 // BACKUP COMMANDS
 // ═══════════════════════════════════════════════════════
 
@@ -357,6 +409,15 @@ pub fn backup_crypttab(
         details: None,
     })?;
     Ok(state.backup_manager.backup_crypttab(&state.logger)?)
+}
+
+// ═══════════════════════════════════════════════════════
+// PRIVILEGE COMMANDS
+// ═══════════════════════════════════════════════════════
+
+#[tauri::command]
+pub fn get_privilege_info() -> crate::privilege::PrivilegeInfo {
+    crate::privilege::detect()
 }
 
 // ═══════════════════════════════════════════════════════
@@ -499,6 +560,7 @@ pub struct SystemOverview {
     pub boot: Option<BootState>,
     pub backup_count: usize,
     pub has_cryptenroll: bool,
+    pub privilege: crate::privilege::PrivilegeInfo,
 }
 
 #[tauri::command]
@@ -526,6 +588,7 @@ pub fn get_system_overview(
 
     let backup_count = state.backup_manager.list_all().map(|b| b.len()).unwrap_or(0);
     let has_cryptenroll = crate::luks::has_cryptenroll();
+    let privilege = crate::privilege::detect();
 
     Ok(SystemOverview {
         distro,
@@ -534,5 +597,6 @@ pub fn get_system_overview(
         boot,
         backup_count,
         has_cryptenroll,
+        privilege,
     })
 }

@@ -1,10 +1,12 @@
 <script>
   import { onMount } from 'svelte';
+  import ConfirmDialog from './ConfirmDialog.svelte';
   import {
     listBackups,
     verifyBackup,
     verifyAllBackups,
     backupCrypttab,
+    restoreLuksHeader,
   } from '../utils/api.js';
 
   let backups = $state([]);
@@ -13,6 +15,11 @@
   let verifying = $state(null);
   let verifyingAll = $state(false);
   let verificationResults = $state(null);
+
+  // Restore confirmation (critical level)
+  let restoreConfirmOpen = $state(false);
+  let pendingRestore = $state(null);
+  let restoring = $state(false);
   let actionStatus = $state(null);
   let filterType = $state('all');
 
@@ -75,6 +82,27 @@
     }
   }
 
+  function requestRestore(backup) {
+    if (backup.backup_type !== 'LuksHeader') return;
+    pendingRestore = backup;
+    restoreConfirmOpen = true;
+  }
+
+  async function executeRestore() {
+    if (!pendingRestore) return;
+    const backup = pendingRestore;
+    pendingRestore = null;
+    restoring = true;
+    try {
+      await restoreLuksHeader(backup.source_path, backup.id);
+      actionStatus = { type: 'success', message: `LUKS header restored from backup (${formatDate(backup.created_at)}). A safety backup of the previous header was created automatically.` };
+    } catch (e) {
+      actionStatus = { type: 'error', message: e?.message || String(e) };
+    } finally {
+      restoring = false;
+    }
+  }
+
   function formatSize(bytes) {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -105,6 +133,18 @@
     KeySlotSnapshot: 'text-text-secondary',
   };
 </script>
+
+<!-- Restore Confirmation (CRITICAL — requires typing) -->
+<ConfirmDialog
+  bind:open={restoreConfirmOpen}
+  level="critical"
+  title="Restore LUKS Header"
+  message={`This will REPLACE the current LUKS header on ${pendingRestore?.source_path || 'the device'} with the backup from ${pendingRestore ? formatDate(pendingRestore.created_at) : ''}. A safety backup of the current header will be created first, but this is still a critical operation.`}
+  details={pendingRestore ? `Device: ${pendingRestore.source_path}\nBackup: ${pendingRestore.backup_path}\nCreated: ${formatDate(pendingRestore.created_at)}\nSHA-256: ${pendingRestore.sha256}` : ''}
+  confirmPhrase="RESTORE HEADER"
+  confirmLabel="Restore Header"
+  onconfirm={executeRestore}
+/>
 
 <div class="p-6 space-y-6">
   <div class="flex items-center justify-between">
@@ -194,6 +234,17 @@
           >
             {verifying === backup.id ? 'Checking...' : 'Verify'}
           </button>
+
+          <!-- Restore button (LUKS headers only) -->
+          {#if backup.backup_type === 'LuksHeader'}
+            <button
+              class="shrink-0 px-3 py-1.5 bg-danger/10 hover:bg-danger/20 border border-danger/30 rounded-lg text-xs text-danger font-medium transition-colors disabled:opacity-50"
+              onclick={() => requestRestore(backup)}
+              disabled={restoring}
+            >
+              {restoring ? 'Restoring...' : 'Restore'}
+            </button>
+          {/if}
         </div>
       {/each}
     </div>

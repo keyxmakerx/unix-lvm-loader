@@ -172,5 +172,24 @@
       </div>
 
     </div>
+
+    <!-- Privilege Warning Banner -->
+    {#if overview.privilege && overview.privilege.level !== 'Root'}
+      <div class="bg-warning/10 border border-warning/30 rounded-lg p-4 flex items-center gap-4">
+        <span class="text-warning text-xl shrink-0">&#128274;</span>
+        <div>
+          <p class="text-sm font-medium text-warning">Running as user: {overview.privilege.username}</p>
+          <p class="text-xs text-text-secondary mt-0.5">
+            {#if overview.privilege.escalation_method === 'Pkexec'}
+              Privileged operations will prompt for authentication via polkit.
+            {:else if overview.privilege.escalation_method === 'Sudo'}
+              Privileged operations will use sudo for authentication.
+            {:else}
+              No privilege escalation available. Some operations may fail. Run as root for full functionality.
+            {/if}
+          </p>
+        </div>
+      </div>
+    {/if}
   {/if}
 </div>
