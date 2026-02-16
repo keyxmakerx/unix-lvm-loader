@@ -503,3 +503,82 @@ fn which_exists(cmd: &str) -> bool {
         .map(|o| o.status.success())
         .unwrap_or(false)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_clevis_list_tang() {
+        let output = "1: tang '{\"url\":\"http://tang.example.com:7500\"}'\n";
+        let bindings = parse_clevis_list(output).unwrap();
+        assert_eq!(bindings.len(), 1);
+        assert_eq!(bindings[0].slot, 1);
+        assert_eq!(bindings[0].pin, "tang");
+        assert_eq!(bindings[0].server_url, Some("http://tang.example.com:7500".to_string()));
+    }
+
+    #[test]
+    fn test_parse_clevis_list_multiple() {
+        let output = "1: tang '{\"url\":\"http://tang1.local:7500\"}'\n3: tang '{\"url\":\"http://tang2.local:7500\"}'\n";
+        let bindings = parse_clevis_list(output).unwrap();
+        assert_eq!(bindings.len(), 2);
+        assert_eq!(bindings[0].slot, 1);
+        assert_eq!(bindings[1].slot, 3);
+        assert_eq!(bindings[1].server_url, Some("http://tang2.local:7500".to_string()));
+    }
+
+    #[test]
+    fn test_parse_clevis_list_sss() {
+        let output = "2: sss '{\"t\":1,\"pins\":{\"tang\":{\"url\":\"http://tang.local\"}}}'\n";
+        let bindings = parse_clevis_list(output).unwrap();
+        assert_eq!(bindings.len(), 1);
+        assert_eq!(bindings[0].slot, 2);
+        assert_eq!(bindings[0].pin, "sss");
+        assert_eq!(bindings[0].server_url, None);
+    }
+
+    #[test]
+    fn test_parse_clevis_list_tpm2() {
+        let output = "1: tpm2 '{\"hash\":\"sha256\",\"key\":\"ecc\"}'\n";
+        let bindings = parse_clevis_list(output).unwrap();
+        assert_eq!(bindings.len(), 1);
+        assert_eq!(bindings[0].pin, "tpm2");
+        assert_eq!(bindings[0].server_url, None);
+    }
+
+    #[test]
+    fn test_parse_clevis_list_empty() {
+        let bindings = parse_clevis_list("").unwrap();
+        assert!(bindings.is_empty());
+    }
+
+    #[test]
+    fn test_parse_clevis_list_whitespace() {
+        let bindings = parse_clevis_list("\n  \n\n").unwrap();
+        assert!(bindings.is_empty());
+    }
+
+    #[test]
+    fn test_parse_clevis_list_with_thumbprint() {
+        let output = "1: tang '{\"url\":\"http://tang.local\",\"thp\":\"dGVzdHRodW1icHJpbnQ\"}'\n";
+        let bindings = parse_clevis_list(output).unwrap();
+        assert_eq!(bindings.len(), 1);
+        assert_eq!(bindings[0].server_url, Some("http://tang.local".to_string()));
+        assert!(bindings[0].config.contains("thp"));
+    }
+
+    #[test]
+    fn test_detect_status_returns_struct() {
+        let status = detect_status();
+        // clevis_installed and tang_client_installed should be the same
+        assert_eq!(status.clevis_installed, status.tang_client_installed);
+    }
+
+    #[test]
+    fn test_get_install_instructions_returns_string() {
+        let instructions = get_install_instructions();
+        assert!(!instructions.is_empty());
+        assert!(instructions.to_lowercase().contains("clevis"));
+    }
+}

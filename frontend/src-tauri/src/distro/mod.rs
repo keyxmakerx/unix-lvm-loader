@@ -331,4 +331,199 @@ PRETTY_NAME="CachyOS Linux"
         let family = classify_family("cachyos", &id_like, None, false);
         assert_eq!(family, DistroFamily::Arch);
     }
+
+    #[test]
+    fn test_parse_fedora_workstation() {
+        let content = r#"
+NAME="Fedora Linux"
+VERSION="40 (Workstation Edition)"
+ID=fedora
+VERSION_ID=40
+VARIANT_ID=workstation
+PRETTY_NAME="Fedora Linux 40 (Workstation Edition)"
+ID_LIKE=""
+"#;
+        let fields = parse_os_release(content);
+        assert_eq!(fields.get("ID").unwrap(), "fedora");
+        assert_eq!(fields.get("VARIANT_ID").unwrap(), "workstation");
+
+        let family = classify_family("fedora", &[], Some("workstation"), false);
+        assert_eq!(family, DistroFamily::Fedora);
+    }
+
+    #[test]
+    fn test_parse_fedora_silverblue() {
+        let family = classify_family("fedora", &[], Some("silverblue"), true);
+        assert_eq!(family, DistroFamily::Atomic);
+    }
+
+    #[test]
+    fn test_parse_fedora_kinoite() {
+        let family = classify_family("fedora", &[], Some("kinoite"), true);
+        assert_eq!(family, DistroFamily::Atomic);
+    }
+
+    #[test]
+    fn test_parse_nobara() {
+        let content = r#"
+NAME="Nobara Linux"
+ID=nobara
+ID_LIKE="fedora"
+VERSION_ID="39"
+PRETTY_NAME="Nobara Linux 39"
+"#;
+        let fields = parse_os_release(content);
+        assert_eq!(fields.get("ID").unwrap(), "nobara");
+
+        let id_like = vec!["fedora".to_string()];
+        let family = classify_family("nobara", &id_like, None, false);
+        assert_eq!(family, DistroFamily::Fedora);
+    }
+
+    #[test]
+    fn test_parse_opensuse() {
+        let family = classify_family("opensuse-tumbleweed", &[], None, false);
+        assert_eq!(family, DistroFamily::Suse);
+    }
+
+    #[test]
+    fn test_parse_manjaro() {
+        let id_like = vec!["arch".to_string()];
+        let family = classify_family("manjaro", &id_like, None, false);
+        assert_eq!(family, DistroFamily::Arch);
+    }
+
+    #[test]
+    fn test_parse_endeavouros() {
+        let family = classify_family("endeavouros", &["arch".to_string()], None, false);
+        assert_eq!(family, DistroFamily::Arch);
+    }
+
+    #[test]
+    fn test_parse_pop_os() {
+        let id_like = vec!["ubuntu".to_string(), "debian".to_string()];
+        let family = classify_family("pop", &id_like, None, false);
+        assert_eq!(family, DistroFamily::Debian);
+    }
+
+    #[test]
+    fn test_parse_linux_mint() {
+        let id_like = vec!["ubuntu".to_string()];
+        let family = classify_family("linuxmint", &id_like, None, false);
+        assert_eq!(family, DistroFamily::Debian);
+    }
+
+    #[test]
+    fn test_parse_debian() {
+        let family = classify_family("debian", &[], None, false);
+        assert_eq!(family, DistroFamily::Debian);
+    }
+
+    #[test]
+    fn test_unknown_distro() {
+        let family = classify_family("gentoo", &[], None, false);
+        assert_eq!(family, DistroFamily::Unknown);
+    }
+
+    #[test]
+    fn test_parse_os_release_handles_comments() {
+        let content = "# This is a comment\nID=test\n# Another comment\nNAME=\"Test\"";
+        let fields = parse_os_release(content);
+        assert_eq!(fields.get("ID").unwrap(), "test");
+        assert_eq!(fields.get("NAME").unwrap(), "Test");
+        assert_eq!(fields.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_os_release_handles_single_quotes() {
+        let content = "ID='ubuntu'\nNAME='Ubuntu'";
+        let fields = parse_os_release(content);
+        assert_eq!(fields.get("ID").unwrap(), "ubuntu");
+    }
+
+    #[test]
+    fn test_parse_os_release_handles_empty_lines() {
+        let content = "\n\nID=test\n\n\nNAME=\"Test\"\n\n";
+        let fields = parse_os_release(content);
+        assert_eq!(fields.len(), 2);
+    }
+
+    #[test]
+    fn test_distro_icon_known() {
+        assert_eq!(distro_icon("ubuntu"), Some("ubuntu".to_string()));
+        assert_eq!(distro_icon("fedora"), Some("fedora".to_string()));
+        assert_eq!(distro_icon("arch"), Some("arch".to_string()));
+        assert_eq!(distro_icon("bazzite"), Some("bazzite".to_string()));
+        assert_eq!(distro_icon("cachyos"), Some("cachyos".to_string()));
+        assert_eq!(distro_icon("nobara"), Some("nobara".to_string()));
+    }
+
+    #[test]
+    fn test_distro_icon_unknown() {
+        assert_eq!(distro_icon("gentoo"), None);
+        assert_eq!(distro_icon("void"), None);
+    }
+
+    #[test]
+    fn test_initramfs_rebuild_command_dracut() {
+        let info = DistroInfo {
+            id: "fedora".into(), name: "Fedora".into(), version: "40".into(),
+            id_like: vec![], variant_id: None, family: DistroFamily::Fedora,
+            initramfs: InitramfsSystem::Dracut, package_manager: PackageManager::Dnf,
+            is_immutable: false, pretty_name: "Fedora 40".into(), icon_name: None,
+        };
+        let cmd = initramfs_rebuild_command(&info);
+        assert_eq!(cmd, vec!["dracut", "--force"]);
+    }
+
+    #[test]
+    fn test_initramfs_rebuild_command_mkinitcpio() {
+        let info = DistroInfo {
+            id: "arch".into(), name: "Arch".into(), version: "".into(),
+            id_like: vec![], variant_id: None, family: DistroFamily::Arch,
+            initramfs: InitramfsSystem::Mkinitcpio, package_manager: PackageManager::Pacman,
+            is_immutable: false, pretty_name: "Arch Linux".into(), icon_name: None,
+        };
+        let cmd = initramfs_rebuild_command(&info);
+        assert_eq!(cmd, vec!["mkinitcpio", "-P"]);
+    }
+
+    #[test]
+    fn test_initramfs_rebuild_command_initramfs_tools() {
+        let info = DistroInfo {
+            id: "ubuntu".into(), name: "Ubuntu".into(), version: "24.04".into(),
+            id_like: vec![], variant_id: None, family: DistroFamily::Debian,
+            initramfs: InitramfsSystem::InitramfsTools, package_manager: PackageManager::Apt,
+            is_immutable: false, pretty_name: "Ubuntu 24.04".into(), icon_name: None,
+        };
+        let cmd = initramfs_rebuild_command(&info);
+        assert_eq!(cmd, vec!["update-initramfs", "-u"]);
+    }
+
+    #[test]
+    fn test_initramfs_rebuild_command_atomic() {
+        let info = DistroInfo {
+            id: "fedora".into(), name: "Bazzite".into(), version: "41".into(),
+            id_like: vec![], variant_id: Some("bazzite".into()), family: DistroFamily::Atomic,
+            initramfs: InitramfsSystem::Dracut, package_manager: PackageManager::RpmOstree,
+            is_immutable: true, pretty_name: "Bazzite 41".into(), icon_name: None,
+        };
+        let cmd = initramfs_rebuild_command(&info);
+        assert_eq!(cmd, vec!["rpm-ostree", "initramfs", "--enable"]);
+    }
+
+    #[test]
+    fn test_grub_update_command_per_family() {
+        let make_info = |family: DistroFamily| DistroInfo {
+            id: "test".into(), name: "Test".into(), version: "1".into(),
+            id_like: vec![], variant_id: None, family,
+            initramfs: InitramfsSystem::Unknown, package_manager: PackageManager::Unknown,
+            is_immutable: false, pretty_name: "Test".into(), icon_name: None,
+        };
+
+        assert_eq!(grub_update_command(&make_info(DistroFamily::Debian)), vec!["update-grub"]);
+        assert_eq!(grub_update_command(&make_info(DistroFamily::Fedora)), vec!["grub2-mkconfig", "-o", "/boot/grub2/grub.cfg"]);
+        assert_eq!(grub_update_command(&make_info(DistroFamily::Arch)), vec!["grub-mkconfig", "-o", "/boot/grub/grub.cfg"]);
+        assert!(grub_update_command(&make_info(DistroFamily::Unknown)).is_empty());
+    }
 }

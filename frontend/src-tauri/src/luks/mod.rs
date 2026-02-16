@@ -506,6 +506,190 @@ pub fn enroll_fido2(
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_field() {
+        let dump = "Version:       2\nUUID:          abc-def-123\nCipher name:   aes\nCipher mode:   xts-plain64\nHash spec:     sha256\nMK bits:       512";
+        assert_eq!(extract_field(dump, "UUID"), Some("abc-def-123".to_string()));
+        assert_eq!(extract_field(dump, "Cipher name"), Some("aes".to_string()));
+        assert_eq!(extract_field(dump, "Cipher mode"), Some("xts-plain64".to_string()));
+        assert_eq!(extract_field(dump, "MK bits"), Some("512".to_string()));
+        assert_eq!(extract_field(dump, "Nonexistent"), None);
+    }
+
+    #[test]
+    fn test_parse_luks2_dump() {
+        let dump = r#"LUKS header information for /dev/sda3
+
+Version:       2
+Epoch:         5
+Metadata area: 16384 [bytes]
+Keyslots area: 16744448 [bytes]
+UUID:          12345678-abcd-ef01-2345-6789abcdef01
+Label:         (no label)
+Subsystem:     (no subsystem)
+Flags:         (no flags)
+
+Data segments:
+  0: crypt
+	offset: 16777216 [bytes]
+	length: (whole device)
+	cipher: aes-xts-plain64
+	sector: 512
+
+Keyslots:
+  0: luks2
+	Key:        512 bits
+	Priority:   normal
+	Cipher:     aes-xts-plain64
+	Cipher key: 512 bits
+	PBKDF:      argon2id
+  1: luks2
+	Key:        512 bits
+	Priority:   normal
+	Cipher:     aes-xts-plain64
+	Cipher key: 512 bits
+	PBKDF:      argon2id
+Tokens:
+  0: systemd-tpm2
+	Keyslot:    1
+Digests:
+  0: pbkdf2
+	Hash:       sha256
+"#;
+        let info = parse_luks_dump("/dev/sda3", dump).unwrap();
+        assert_eq!(info.version, LuksVersion::Luks2);
+        assert_eq!(info.uuid, "12345678-abcd-ef01-2345-6789abcdef01");
+        assert_eq!(info.total_slots, 32);
+        assert_eq!(info.key_slots.len(), 2);
+        assert!(info.key_slots[0].enabled);
+        assert_eq!(info.key_slots[0].slot_number, 0);
+        assert_eq!(info.key_slots[1].slot_number, 1);
+        assert_eq!(info.active_passphrase_slots, 2);
+        assert_eq!(info.tokens.len(), 1);
+        assert_eq!(info.tokens[0].token_type, "systemd-tpm2");
+        assert_eq!(info.tokens[0].keyslots, vec![1]);
+    }
+
+    #[test]
+    fn test_parse_luks1_dump() {
+        let dump = r#"LUKS header information for /dev/sdb1
+
+Version:       1
+Cipher name:   aes
+Cipher mode:   xts-plain64
+Hash spec:     sha256
+Payload offset: 4096
+MK bits:       256
+MK digest:     aa bb cc dd ee ff 00 11 22 33 44 55 66 77 88 99 aa bb cc dd
+
+Key Slot 0: ENABLED
+	Iterations:  1234567
+Key Slot 1: DISABLED
+Key Slot 2: DISABLED
+Key Slot 3: DISABLED
+Key Slot 4: DISABLED
+Key Slot 5: ENABLED
+Key Slot 6: DISABLED
+Key Slot 7: DISABLED
+"#;
+        let info = parse_luks_dump("/dev/sdb1", dump).unwrap();
+        assert_eq!(info.version, LuksVersion::Luks1);
+        assert_eq!(info.total_slots, 8);
+        assert_eq!(info.key_slots.len(), 8);
+        assert!(info.key_slots[0].enabled);
+        assert!(!info.key_slots[1].enabled);
+        assert!(info.key_slots[5].enabled);
+        assert_eq!(info.active_passphrase_slots, 2);
+        assert!(info.tokens.is_empty()); // LUKS1 has no tokens
+    }
+
+    #[test]
+    fn test_parse_tokens_multiple() {
+        let dump = "Tokens:\n  0: systemd-tpm2\n\tKeyslot:    0\n  1: systemd-fido2\n\tKeyslot:    2\nDigests:\n";
+        let tokens = parse_tokens(dump);
+        assert_eq!(tokens.len(), 2);
+        assert_eq!(tokens[0].token_type, "systemd-tpm2");
+        assert_eq!(tokens[0].keyslots, vec![0]);
+        assert_eq!(tokens[1].token_type, "systemd-fido2");
+        assert_eq!(tokens[1].keyslots, vec![2]);
+    }
+
+    #[test]
+    fn test_parse_tokens_empty() {
+        let dump = "Tokens:\nDigests:\n";
+        let tokens = parse_tokens(dump);
+        assert!(tokens.is_empty());
+    }
+
+    #[test]
+    fn test_count_passphrase_slots() {
+        let info = LuksInfo {
+            device: "/dev/sda".into(), uuid: "test".into(),
+            version: LuksVersion::Luks2, cipher: "aes".into(),
+            key_size_bits: 512, hash: "sha256".into(), label: None,
+            key_slots: vec![
+                KeySlot { slot_number: 0, enabled: true, key_type: "luks2".into(), kdf: None, priority: None },
+                KeySlot { slot_number: 1, enabled: true, key_type: "luks2".into(), kdf: None, priority: None },
+                KeySlot { slot_number: 2, enabled: false, key_type: "empty".into(), kdf: None, priority: None },
+            ],
+            tokens: vec![], total_slots: 32, active_passphrase_slots: 2,
+        };
+        assert_eq!(count_passphrase_slots(&info), 2);
+    }
+
+    #[test]
+    fn test_safety_check_allows_removal_with_remaining() {
+        let info = LuksInfo {
+            device: "/dev/sda".into(), uuid: "test".into(),
+            version: LuksVersion::Luks2, cipher: "aes".into(),
+            key_size_bits: 512, hash: "sha256".into(), label: None,
+            key_slots: vec![
+                KeySlot { slot_number: 0, enabled: true, key_type: "luks2".into(), kdf: None, priority: None },
+                KeySlot { slot_number: 1, enabled: true, key_type: "luks2".into(), kdf: None, priority: None },
+            ],
+            tokens: vec![], total_slots: 32, active_passphrase_slots: 2,
+        };
+        assert!(safety_check_key_removal(&info, 0).is_ok());
+    }
+
+    #[test]
+    fn test_safety_check_blocks_last_slot_removal() {
+        let info = LuksInfo {
+            device: "/dev/sda".into(), uuid: "test".into(),
+            version: LuksVersion::Luks2, cipher: "aes".into(),
+            key_size_bits: 512, hash: "sha256".into(), label: None,
+            key_slots: vec![
+                KeySlot { slot_number: 0, enabled: true, key_type: "luks2".into(), kdf: None, priority: None },
+            ],
+            tokens: vec![], total_slots: 32, active_passphrase_slots: 1,
+        };
+        let result = safety_check_key_removal(&info, 0);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("last active key slot"));
+    }
+
+    #[test]
+    fn test_safety_check_ignores_disabled_slots() {
+        let info = LuksInfo {
+            device: "/dev/sda".into(), uuid: "test".into(),
+            version: LuksVersion::Luks2, cipher: "aes".into(),
+            key_size_bits: 512, hash: "sha256".into(), label: None,
+            key_slots: vec![
+                KeySlot { slot_number: 0, enabled: true, key_type: "luks2".into(), kdf: None, priority: None },
+                KeySlot { slot_number: 1, enabled: false, key_type: "empty".into(), kdf: None, priority: None },
+            ],
+            tokens: vec![], total_slots: 32, active_passphrase_slots: 1,
+        };
+        // Only 1 enabled slot, removing it should fail even though slot 1 exists (disabled)
+        assert!(safety_check_key_removal(&info, 0).is_err());
+    }
+}
+
 /// Generate a recovery key and enroll it
 pub fn enroll_recovery_key(
     device: &str,

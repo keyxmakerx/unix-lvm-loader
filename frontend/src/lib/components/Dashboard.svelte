@@ -1,14 +1,26 @@
 <script>
   import { onMount } from 'svelte';
-  import { getSystemOverview } from '../utils/api.js';
+  import { getSystemOverview, getClevisStatus, runDiagnostics } from '../utils/api.js';
 
   let overview = $state(null);
+  let clevisStatus = $state(null);
+  let diagnostics = $state(null);
   let loading = $state(true);
   let error = $state(null);
 
   onMount(async () => {
     try {
-      overview = await getSystemOverview();
+      const [ov, cs, diag] = await Promise.allSettled([
+        getSystemOverview(),
+        getClevisStatus(),
+        runDiagnostics(),
+      ]);
+      overview = ov.status === 'fulfilled' ? ov.value : null;
+      clevisStatus = cs.status === 'fulfilled' ? cs.value : null;
+      diagnostics = diag.status === 'fulfilled' ? diag.value : null;
+      if (!overview) {
+        error = ov.reason?.message || 'Failed to load system overview';
+      }
     } catch (e) {
       error = e?.message || String(e);
     } finally {
@@ -168,6 +180,71 @@
         {:else}
           <p class="text-warning font-semibold">Not Available</p>
           <p class="text-sm text-text-secondary mt-1">Install systemd-cryptenroll for hardware security</p>
+        {/if}
+      </div>
+
+      <!-- Clevis/Tang Card -->
+      <div class="bg-surface-1 border border-border rounded-lg p-5">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-10 h-10 rounded-lg flex items-center justify-center text-lg {clevisStatus?.clevis_installed ? 'bg-success/20 text-success' : 'bg-surface-3 text-text-muted'}">
+            &#128279;
+          </div>
+          <div>
+            <h3 class="font-semibold text-text-primary">Clevis / Tang</h3>
+            <p class="text-xs text-text-muted">Network-bound unlock</p>
+          </div>
+        </div>
+        {#if clevisStatus?.clevis_installed}
+          <p class="text-success font-semibold">Available</p>
+          <p class="text-sm text-text-secondary mt-1">
+            Network-based auto-unlock ready
+            {#if clevisStatus.clevis_version}
+              <span class="text-text-muted">({clevisStatus.clevis_version})</span>
+            {/if}
+          </p>
+        {:else}
+          <p class="text-text-muted font-semibold">Not Installed</p>
+          <p class="text-sm text-text-secondary mt-1">Install clevis for network-bound disk encryption</p>
+        {/if}
+      </div>
+
+      <!-- System Health Card -->
+      <div class="bg-surface-1 border border-border rounded-lg p-5">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-10 h-10 rounded-lg flex items-center justify-center text-lg
+            {diagnostics?.overall_health === 'Healthy' ? 'bg-success/20 text-success' :
+             diagnostics?.overall_health === 'Warning' ? 'bg-warning/20 text-warning' :
+             diagnostics?.overall_health === 'Critical' ? 'bg-danger/20 text-danger' :
+             'bg-surface-3 text-text-muted'}">
+            {#if diagnostics?.overall_health === 'Healthy'}
+              &#10003;
+            {:else if diagnostics?.overall_health === 'Warning'}
+              &#9888;
+            {:else if diagnostics?.overall_health === 'Critical'}
+              &#10007;
+            {:else}
+              &#128657;
+            {/if}
+          </div>
+          <div>
+            <h3 class="font-semibold text-text-primary">System Health</h3>
+            <p class="text-xs text-text-muted">Recovery diagnostics</p>
+          </div>
+        </div>
+        {#if diagnostics}
+          <p class="font-semibold
+            {diagnostics.overall_health === 'Healthy' ? 'text-success' :
+             diagnostics.overall_health === 'Warning' ? 'text-warning' : 'text-danger'}">
+            {diagnostics.overall_health}
+          </p>
+          <p class="text-sm text-text-secondary mt-1">
+            {diagnostics.checks.length} checks, {diagnostics.issues.length} issue(s)
+          </p>
+          {#if diagnostics.issues.length > 0}
+            <p class="text-xs text-warning mt-1">Go to Recovery page for details</p>
+          {/if}
+        {:else}
+          <p class="text-text-muted text-sm">Could not run diagnostics</p>
         {/if}
       </div>
 

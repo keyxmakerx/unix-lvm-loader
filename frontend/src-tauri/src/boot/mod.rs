@@ -423,6 +423,112 @@ fn guess_distro_from_title(title: &str) -> (Option<String>, Option<String>) {
     (None, None)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_guess_distro_ubuntu() {
+        let (id, icon) = guess_distro_from_title("Ubuntu 24.04 LTS");
+        assert_eq!(id, Some("ubuntu".to_string()));
+        assert_eq!(icon, Some("ubuntu".to_string()));
+    }
+
+    #[test]
+    fn test_guess_distro_fedora() {
+        let (id, _) = guess_distro_from_title("Fedora Linux 40 (Workstation)");
+        assert_eq!(id, Some("fedora".to_string()));
+    }
+
+    #[test]
+    fn test_guess_distro_cachyos() {
+        let (id, _) = guess_distro_from_title("CachyOS Linux");
+        assert_eq!(id, Some("cachyos".to_string()));
+    }
+
+    #[test]
+    fn test_guess_distro_cachy_variant() {
+        let (id, _) = guess_distro_from_title("Cachy Linux 6.8.1");
+        assert_eq!(id, Some("cachyos".to_string()));
+    }
+
+    #[test]
+    fn test_guess_distro_arch() {
+        let (id, _) = guess_distro_from_title("Arch Linux");
+        assert_eq!(id, Some("arch".to_string()));
+    }
+
+    #[test]
+    fn test_guess_distro_bazzite() {
+        let (id, _) = guess_distro_from_title("Bazzite 41");
+        assert_eq!(id, Some("bazzite".to_string()));
+    }
+
+    #[test]
+    fn test_guess_distro_windows() {
+        let (id, _) = guess_distro_from_title("Windows Boot Manager (on /dev/sda1)");
+        assert_eq!(id, Some("windows".to_string()));
+    }
+
+    #[test]
+    fn test_guess_distro_pop_os() {
+        let (id, _) = guess_distro_from_title("Pop!_OS 22.04");
+        assert_eq!(id, Some("pop-os".to_string()));
+    }
+
+    #[test]
+    fn test_guess_distro_opensuse() {
+        let (id, _) = guess_distro_from_title("openSUSE Tumbleweed");
+        assert_eq!(id, Some("opensuse".to_string()));
+    }
+
+    #[test]
+    fn test_guess_distro_mint() {
+        let (id, _) = guess_distro_from_title("Linux Mint 21.3");
+        assert_eq!(id, Some("linuxmint".to_string()));
+    }
+
+    #[test]
+    fn test_guess_distro_generic_linux() {
+        let (id, _) = guess_distro_from_title("Some Custom Linux Kernel");
+        assert_eq!(id, Some("linux".to_string()));
+    }
+
+    #[test]
+    fn test_guess_distro_unknown() {
+        let (id, icon) = guess_distro_from_title("UEFI Firmware Settings");
+        assert_eq!(id, None);
+        assert_eq!(icon, None);
+    }
+
+    #[test]
+    fn test_guess_distro_case_insensitive() {
+        let (id, _) = guess_distro_from_title("UBUNTU 24.04");
+        assert_eq!(id, Some("ubuntu".to_string()));
+
+        let (id, _) = guess_distro_from_title("FEDORA LINUX");
+        assert_eq!(id, Some("fedora".to_string()));
+    }
+
+    #[test]
+    fn test_guess_distro_endeavouros() {
+        let (id, _) = guess_distro_from_title("EndeavourOS Linux");
+        assert_eq!(id, Some("endeavouros".to_string()));
+    }
+
+    #[test]
+    fn test_guess_distro_nobara() {
+        let (id, _) = guess_distro_from_title("Nobara Linux 39");
+        assert_eq!(id, Some("nobara".to_string()));
+    }
+
+    #[test]
+    fn test_guess_distro_manjaro() {
+        let (id, _) = guess_distro_from_title("Manjaro Linux (Kernel: 6.8)");
+        assert_eq!(id, Some("manjaro".to_string()));
+    }
+}
+
 /// Set the default boot entry
 pub fn set_default_entry(
     entry_id: &str,
