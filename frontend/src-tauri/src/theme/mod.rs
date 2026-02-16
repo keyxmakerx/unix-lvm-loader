@@ -186,7 +186,8 @@ impl ThemeManager {
                 base64_encode(&buf)
             ))
         } else {
-            None
+            // Generate fallback SVG thumbnail
+            Some(generate_fallback_thumbnail(&name, &style))
         };
 
         let screenshot_path = dir.join("screenshot.png");
@@ -407,6 +408,47 @@ style = "graphical"
     pub fn cache_dir(&self) -> &Path {
         &self.cache_dir
     }
+}
+
+/// Generate an inline SVG thumbnail when no PNG is available
+fn generate_fallback_thumbnail(name: &str, style: &ThemeStyle) -> String {
+    let escaped_name = name
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;");
+
+    let svg = match style {
+        ThemeStyle::Graphical => format!(
+            concat!(
+                r##"<svg xmlns="http://www.w3.org/2000/svg" width="400" height="160" viewBox="0 0 400 160">"##,
+                r##"<rect width="400" height="160" fill="#1a1b2e"/>"##,
+                r##"<circle cx="120" cy="65" r="22" fill="#6366f1" opacity="0.9"/>"##,
+                r##"<circle cx="200" cy="65" r="22" fill="#3b82f6" opacity="0.9"/>"##,
+                r##"<circle cx="280" cy="65" r="22" fill="#8b5cf6" opacity="0.9"/>"##,
+                r##"<text x="200" y="135" text-anchor="middle" fill="#6366f1" font-family="sans-serif" font-size="14" font-weight="bold">{}</text>"##,
+                r##"</svg>"##,
+            ),
+            escaped_name,
+        ),
+        ThemeStyle::Text => format!(
+            concat!(
+                r##"<svg xmlns="http://www.w3.org/2000/svg" width="400" height="160" viewBox="0 0 400 160">"##,
+                r##"<rect width="400" height="160" fill="#0d1117"/>"##,
+                r##"<rect x="100" y="45" width="200" height="12" rx="2" fill="#58a6ff" opacity="0.8"/>"##,
+                r##"<rect x="100" y="65" width="160" height="12" rx="2" fill="#8b949e" opacity="0.5"/>"##,
+                r##"<rect x="100" y="85" width="180" height="12" rx="2" fill="#8b949e" opacity="0.5"/>"##,
+                r##"<text x="200" y="135" text-anchor="middle" fill="#58a6ff" font-family="sans-serif" font-size="14" font-weight="bold">{}</text>"##,
+                r##"</svg>"##,
+            ),
+            escaped_name,
+        ),
+    };
+
+    format!(
+        "data:image/svg+xml;base64,{}",
+        base64_encode(svg.as_bytes())
+    )
 }
 
 /// Simple base64 encoder (avoids adding base64 crate dependency)

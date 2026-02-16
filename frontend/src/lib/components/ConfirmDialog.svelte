@@ -22,19 +22,40 @@
   } = $props();
 
   let typedPhrase = $state('');
+
+  /**
+   * Imperative API — call dialog.open({ title, message, ... }) to show.
+   * Used by components that bind:this={dialog} instead of bind:open.
+   */
+  let imperativeOnConfirm = $state(null);
+  export function show(config) {
+    title = config.title || 'Confirm Action';
+    message = config.message || '';
+    details = config.details || null;
+    level = config.level || 'warning';
+    confirmPhrase = config.confirmPhrase || '';
+    confirmLabel = config.confirmLabel || 'Confirm';
+    cancelLabel = config.cancelLabel || 'Cancel';
+    imperativeOnConfirm = config.onConfirm || null;
+    typedPhrase = '';
+    open = true;
+  }
   let canConfirm = $derived(
     level === 'critical' ? typedPhrase.trim() === confirmPhrase.trim() : true
   );
 
   function handleConfirm() {
     if (!canConfirm) return;
+    const cb = imperativeOnConfirm || onconfirm;
     typedPhrase = '';
+    imperativeOnConfirm = null;
     open = false;
-    onconfirm();
+    cb();
   }
 
   function handleCancel() {
     typedPhrase = '';
+    imperativeOnConfirm = null;
     open = false;
     oncancel();
   }

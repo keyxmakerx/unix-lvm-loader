@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { listThemes, setActiveTheme, getThemeScreenshot } from '../utils/api.js';
+  import { formatError } from '../utils/errors.js';
 
   let themes = $state([]);
   let loading = $state(true);
@@ -19,7 +20,7 @@
     try {
       themes = await listThemes();
     } catch (e) {
-      error = e?.message || String(e);
+      error = formatError(e);
     } finally {
       loading = false;
     }
@@ -55,7 +56,7 @@
       await setActiveTheme(themeId);
       await loadThemes();
     } catch (e) {
-      error = e?.message || String(e);
+      error = formatError(e);
     } finally {
       settingTheme = null;
     }
@@ -82,8 +83,11 @@
     </div>
   {:else if error}
     <div class="bg-danger/10 border border-danger/30 rounded-lg p-4 text-danger">
-      <p class="font-semibold">Error</p>
-      <p class="text-sm mt-1">{error}</p>
+      <p class="font-semibold">{error.title}</p>
+      <p class="text-sm mt-1">{error.message}</p>
+      {#if error.hint}
+        <p class="text-xs text-text-muted mt-2">{error.hint}</p>
+      {/if}
     </div>
   {:else}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">

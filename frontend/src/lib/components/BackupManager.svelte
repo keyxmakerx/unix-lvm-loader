@@ -8,6 +8,7 @@
     backupCrypttab,
     restoreLuksHeader,
   } from '../utils/api.js';
+  import { formatError } from '../utils/errors.js';
 
   let backups = $state([]);
   let loading = $state(true);
@@ -32,7 +33,8 @@
     try {
       backups = await listBackups(filterType === 'all' ? null : filterType);
     } catch (e) {
-      error = e?.message || String(e);
+      const err = formatError(e);
+      error = `${err.title}: ${err.message}`;
     } finally {
       loading = false;
     }
@@ -47,7 +49,8 @@
         message: valid ? 'Backup integrity verified (SHA-256 match)' : 'BACKUP CORRUPTED! SHA-256 mismatch detected.',
       };
     } catch (e) {
-      actionStatus = { type: 'error', message: e?.message || String(e) };
+      const err = formatError(e);
+      actionStatus = { type: 'error', message: `${err.title}: ${err.message}` };
     } finally {
       verifying = null;
     }
@@ -66,7 +69,8 @@
         actionStatus = { type: 'error', message: `${failed.length} of ${results.length} backups FAILED verification!` };
       }
     } catch (e) {
-      actionStatus = { type: 'error', message: e?.message || String(e) };
+      const err = formatError(e);
+      actionStatus = { type: 'error', message: `${err.title}: ${err.message}` };
     } finally {
       verifyingAll = false;
     }
@@ -78,7 +82,8 @@
       actionStatus = { type: 'success', message: 'crypttab backed up successfully.' };
       await loadBackups();
     } catch (e) {
-      actionStatus = { type: 'error', message: e?.message || String(e) };
+      const err = formatError(e);
+      actionStatus = { type: 'error', message: `${err.title}: ${err.message}` };
     }
   }
 
@@ -97,7 +102,8 @@
       await restoreLuksHeader(backup.source_path, backup.id);
       actionStatus = { type: 'success', message: `LUKS header restored from backup (${formatDate(backup.created_at)}). A safety backup of the previous header was created automatically.` };
     } catch (e) {
-      actionStatus = { type: 'error', message: e?.message || String(e) };
+      const err = formatError(e);
+      actionStatus = { type: 'error', message: `${err.title}: ${err.message}` };
     } finally {
       restoring = false;
     }

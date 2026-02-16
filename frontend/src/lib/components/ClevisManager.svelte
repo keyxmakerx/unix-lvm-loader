@@ -98,7 +98,7 @@
   }
 
   async function executeTangBind() {
-    confirmDialog?.open({
+    confirmDialog?.show({
       title: 'Bind to Tang Server',
       message: `This will bind ${selectedDevice} to the Tang server at ${tangUrl}. The device will automatically unlock when connected to the network where this server is reachable. A LUKS header backup will be created first.`,
       level: 'warning',
@@ -125,7 +125,7 @@
 
   async function handleUnbind(slot) {
     const binding = bindings.find((b) => b.slot === slot);
-    confirmDialog?.open({
+    confirmDialog?.show({
       title: 'Remove Clevis Binding',
       message: `Remove the ${binding?.pin || 'Clevis'} binding from slot ${slot} on ${selectedDevice}? A LUKS header backup will be created before removal.`,
       level: 'warning',

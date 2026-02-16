@@ -3,6 +3,7 @@
   import { runDiagnostics, getRecoveryBackups, rebuildInitramfs } from '../utils/api.js';
   import ConfirmDialog from './ConfirmDialog.svelte';
   import Toast from './Toast.svelte';
+  import { formatError } from '../utils/errors.js';
 
   let diagnostics = $state(null);
   let backups = $state([]);
@@ -22,7 +23,8 @@
       diagnostics = await runDiagnostics();
       backups = await getRecoveryBackups();
     } catch (e) {
-      toast?.show('Diagnostic scan failed: ' + e.message, 'error');
+      const err = formatError(e);
+      toast?.show(`${err.title}: ${err.message}`, 'error');
     }
     scanning = false;
   }
@@ -69,7 +71,7 @@
     const level = action.destructive ? 'critical' : 'warning';
     const confirmPhrase = action.destructive ? 'EXECUTE RECOVERY' : undefined;
 
-    confirmDialog?.open({
+    confirmDialog?.show({
       title: action.label,
       message: `${action.description}${action.command_preview ? '\n\nCommand: ' + action.command_preview : ''}`,
       level,
@@ -98,7 +100,8 @@
           // Rescan after any action
           await runScan();
         } catch (e) {
-          toast?.show('Action failed: ' + e.message, 'error');
+          const err = formatError(e);
+          toast?.show(`${err.title}: ${err.message}`, 'error');
         }
         executingAction = null;
       },

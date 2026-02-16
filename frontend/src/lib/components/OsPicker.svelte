@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
   import { scanBootEntries, setDefaultBoot } from '../utils/api.js';
+  import { formatError } from '../utils/errors.js';
 
   let bootState = $state(null);
   let loading = $state(true);
@@ -25,7 +26,8 @@
       bootState = await scanBootEntries();
       selectedEntry = bootState.entries.find(e => e.is_default) || bootState.entries[0] || null;
     } catch (e) {
-      error = e?.message || String(e);
+      const err = formatError(e);
+      error = err;
     } finally {
       loading = false;
     }
@@ -45,7 +47,8 @@
       await setDefaultBoot(entryId);
       await loadEntries();
     } catch (e) {
-      error = e?.message || String(e);
+      const err = formatError(e);
+      error = err;
     } finally {
       settingDefault = null;
     }
@@ -108,8 +111,11 @@
     </div>
   {:else if error}
     <div class="bg-danger/10 border border-danger/30 rounded-lg p-4 text-danger">
-      <p class="font-semibold">Error</p>
-      <p class="text-sm mt-1">{error}</p>
+      <p class="font-semibold">{error.title}</p>
+      <p class="text-sm mt-1">{error.message}</p>
+      {#if error.hint}
+        <p class="text-xs text-text-muted mt-2">{error.hint}</p>
+      {/if}
     </div>
   {:else if bootState}
 
@@ -128,7 +134,7 @@
             <button
               class="group relative bg-surface-1 border-2 rounded-xl p-6 text-center transition-all hover:scale-105 hover:shadow-lg {selectedEntry?.id === entry.id ? 'border-accent shadow-accent/20 shadow-lg' : 'border-border hover:border-accent/50'}"
               onclick={() => (selectedEntry = entry)}
-              ondblclick={() => { confirmSetDefault = true; }}
+              ondblclick={() => requestSetDefault(entry.id)}
             >
               {#if entry.is_default}
                 <div class="absolute top-2 right-2 bg-success text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">DEFAULT</div>

@@ -311,7 +311,7 @@ VARIANT_ID=bazzite
 VERSION_ID="41"
 PRETTY_NAME="Bazzite 41"
 "#;
-        let fields = parse_os_release(content);
+        let _fields = parse_os_release(content);
         let id_like: Vec<String> = vec![];
         let family = classify_family("fedora", &id_like, Some("bazzite"), true);
         assert_eq!(family, DistroFamily::Atomic);
@@ -326,7 +326,7 @@ ID_LIKE=arch
 VERSION_ID="2024.01"
 PRETTY_NAME="CachyOS Linux"
 "#;
-        let fields = parse_os_release(content);
+        let _fields = parse_os_release(content);
         let id_like = vec!["arch".to_string()];
         let family = classify_family("cachyos", &id_like, None, false);
         assert_eq!(family, DistroFamily::Arch);
